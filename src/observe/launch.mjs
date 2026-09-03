@@ -48,9 +48,12 @@ export async function launchTarget({ db, sessionId, target, args = [], cwd = pro
   child.stdout.on('data', consume);
   child.stderr.on('data', () => {});
 
+  // `exit` can fire before stdio pipes are fully drained (notably on Windows).
+  // `close` fires after the child has exited and its stdio streams are closed,
+  // so no structured stdout callback can race with the caller closing SQLite.
   const exit = await new Promise((resolve, reject) => {
     child.once('error', reject);
-    child.once('exit', (code, signal) => resolve({ code, signal }));
+    child.once('close', (code, signal) => resolve({ code, signal }));
   });
   const exited = appendEvent(db, {
     sessionId, source: 'launcher', kind: 'ProcessExited', correlationId: `pid-${child.pid}`,
