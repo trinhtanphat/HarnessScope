@@ -1,0 +1,4 @@
+"Time of Day","Process Name","PID","Operation","Path","Result","Detail"
+"00:00:01.0000000","agent.exe","100","Process Create","C:\Tools\child.exe","SUCCESS","PID: 101, Command line: child.exe --work"
+"00:00:01.1000000","agent.exe","100","ReadFile","C:\project\skills\frontend.md","SUCCESS","Offset: 0, Length: 4096"
+"00:00:01.2000000","agent.exe","100","WriteFile","C:\project\session.json","SUCCESS","Offset: 0, Length: 128"

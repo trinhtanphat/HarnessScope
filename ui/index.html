@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HarnessScope</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="logo">H</div><div><strong>HarnessScope</strong><span>clean-room inspector</span></div></div>
+      <div class="section-label">SESSIONS</div>
+      <div id="sessions" class="sessions"></div>
+      <div class="sidebar-foot"><span class="dot"></span> Local workspace</div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="tabs">
+          <button class="tab active" data-tab="trace">Trace</button>
+          <button class="tab" data-tab="spec">Spec</button>
+        </div>
+        <div class="top-actions">
+          <select id="kindFilter" class="control"><option value="">All event kinds</option></select>
+          <button id="inferBtn" class="button">Run inference</button>
+        </div>
+      </header>
+
+      <section id="emptyState" class="empty-state">
+        <div class="orb"></div>
+        <h1>Observe the harness, not the hidden code.</h1>
+        <p>Select a session to inspect its process, file, tool, permission, context and persistence evidence.</p>
+      </section>
+
+      <section id="traceView" class="content hidden">
+        <div class="session-head">
+          <div><div class="eyebrow" id="modeLabel"></div><h1 id="sessionTitle"></h1></div>
+          <div id="traceSummary" class="summary-pill"></div>
+        </div>
+        <div id="traceGroups" class="trace-groups"></div>
+      </section>
+
+      <section id="specView" class="content hidden">
+        <div class="session-head"><div><div class="eyebrow">BEHAVIORAL SPEC</div><h1>Evidence-backed findings</h1></div></div>
+        <div id="findings" class="findings"></div>
+      </section>
+    </main>
+
+    <aside id="inspector" class="inspector">
+      <div class="inspector-head"><span>Inspector</span><button id="closeInspector" aria-label="Close">×</button></div>
+      <div id="inspectorBody" class="inspector-body"><p class="muted">Select an event or finding.</p></div>
+    </aside>
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

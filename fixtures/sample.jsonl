@@ -1,0 +1,2 @@
+{"ts":"2026-09-04T00:00:02.000Z","event":"permission_prompt","cid":"p1","payload":{"action":"shell","command":"npm test"}}
+{"ts":"2026-09-04T00:00:03.000Z","event":"permission_decision","cid":"p1","payload":{"decision":"allow"}}

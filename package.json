@@ -1,0 +1,14 @@
+{
+  "name": "harnesscope",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Clean-room coding-agent harness inspector and behavioral spec exporter",
+  "bin": {"harnesscope": "./bin/harnesscope.mjs"},
+  "scripts": {
+    "test": "node --test",
+    "start": "node ./bin/harnesscope.mjs"
+  },
+  "engines": {"node": ">=22"},
+  "license": "Apache-2.0"
+}

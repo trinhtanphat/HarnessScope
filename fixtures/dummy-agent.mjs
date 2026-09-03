@@ -1,0 +1,10 @@
+const emit = (event) => console.log(`HARNESSCOPE_EVENT ${JSON.stringify(event)}`);
+emit({kind:'SkillRead', data:{path:'skills/frontend.md'}});
+emit({kind:'PermissionPrompt', correlationId:'perm-1', data:{action:'shell'}});
+emit({kind:'PermissionDecision', correlationId:'perm-1', data:{decision:'allow'}});
+emit({kind:'ToolCall', correlationId:'tool-1', data:{name:'read', args:{path:'src/app.js'}}});
+emit({kind:'ToolResult', correlationId:'tool-1', data:{name:'read', ok:true}});
+emit({kind:'FileWritten', data:{path:'src/app.js'}});
+emit({kind:'ToolCall', correlationId:'tool-2', data:{name:'shell', args:{command:'npm test'}}});
+emit({kind:'ToolResult', correlationId:'tool-2', data:{name:'shell', ok:true}});
+emit({kind:'CompactionMarker', data:{reason:'fixture'}});

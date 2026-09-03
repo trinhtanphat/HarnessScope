@@ -1,0 +1,5 @@
+timestamp: ts
+kind: event
+correlationId: cid
+data: payload
+source: external-jsonl
