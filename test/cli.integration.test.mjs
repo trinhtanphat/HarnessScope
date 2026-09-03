@@ -2,14 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-const root = resolve(new URL('..', import.meta.url).pathname);
+const root = fileURLToPath(new URL('..', import.meta.url));
 const bin = join(root, 'bin', 'harnesscope.mjs');
 function run(args) {
   const r = spawnSync(process.execPath, [bin, ...args], { cwd: root, encoding:'utf8', env:{...process.env, NODE_NO_WARNINGS:'1'} });
-  if (r.status !== 0) throw new Error(`CLI failed (${r.status}): ${r.stderr || r.stdout}`);
+  if (r.status !== 0) throw new Error(`CLI failed (${r.status}): ${r.error?.message || r.stderr || r.stdout}`);
   return r.stdout.trim();
 }
 
