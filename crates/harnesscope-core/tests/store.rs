@@ -14,7 +14,7 @@ fn opens_and_extends_released_v02_workspace_without_conversion() {
     let path = dir.path().join("workspace.sqlite");
     fs::write(&path, FIXTURE).unwrap();
 
-    let mut workspace = Workspace::open(&path).unwrap();
+    let workspace = Workspace::open(&path).unwrap();
     let sessions = workspace.list_sessions().unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].id, SESSION_ID);
