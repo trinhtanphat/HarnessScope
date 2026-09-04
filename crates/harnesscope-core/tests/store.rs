@@ -32,7 +32,9 @@ fn opens_and_extends_released_v02_workspace_without_conversion() {
     assert_eq!(findings[0].id.as_deref(), Some(FINDING_ID));
     assert_eq!(findings[0].evidence_event_ids, vec![EVENT_ID]);
 
-    let created = workspace.create_session("rust extension", "desktop").unwrap();
+    let created = workspace
+        .create_session("rust extension", "desktop")
+        .unwrap();
     let stored = workspace
         .append_event(
             &created.id,
@@ -72,7 +74,9 @@ fn opens_and_extends_released_v02_workspace_without_conversion() {
     drop(reopened);
 
     let bytes = fs::read(path).unwrap();
-    assert!(!bytes.windows(b"rust-secret-must-not-persist".len()).any(|window| {
-        window == b"rust-secret-must-not-persist"
-    }));
+    assert!(
+        !bytes
+            .windows(b"rust-secret-must-not-persist".len())
+            .any(|window| { window == b"rust-secret-must-not-persist" })
+    );
 }

@@ -80,12 +80,7 @@ impl Workspace {
         };
         self.conn.execute(
             "INSERT INTO sessions(id,name,mode,created_utc) VALUES(?1,?2,?3,?4)",
-            params![
-                session.id,
-                session.name,
-                session.mode,
-                session.created_utc
-            ],
+            params![session.id, session.name, session.mode, session.created_utc],
         )?;
         Ok(session)
     }
@@ -233,10 +228,8 @@ impl Workspace {
             drop(ids_stmt);
 
             for id in ids {
-                self.conn.execute(
-                    "DELETE FROM finding_evidence WHERE finding_id=?1",
-                    [id],
-                )?;
+                self.conn
+                    .execute("DELETE FROM finding_evidence WHERE finding_id=?1", [id])?;
             }
             self.conn
                 .execute("DELETE FROM findings WHERE session_id=?1", [session_id])?;

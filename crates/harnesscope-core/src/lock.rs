@@ -209,12 +209,14 @@ impl WorkspaceLock {
             let thread_lock_path = lock_path.clone();
             let thread_token = owner.token.clone();
             let interval = config.heartbeat_interval;
-            let handle = thread::spawn(move || loop {
-                match rx.recv_timeout(interval) {
-                    Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                    Err(mpsc::RecvTimeoutError::Timeout) => {
-                        if refresh_owned(&thread_lock_path, &thread_token).is_err() {
-                            break;
+            let handle = thread::spawn(move || {
+                loop {
+                    match rx.recv_timeout(interval) {
+                        Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        Err(mpsc::RecvTimeoutError::Timeout) => {
+                            if refresh_owned(&thread_lock_path, &thread_token).is_err() {
+                                break;
+                            }
                         }
                     }
                 }
