@@ -1,4 +1,4 @@
-use harnesscope_core::{export_session, Finding, TraceEventInput, Workspace};
+use harnesscope_core::{Finding, TraceEventInput, Workspace, export_session};
 use serde_json::json;
 use std::{fs, path::PathBuf};
 use tempfile::tempdir;
@@ -43,7 +43,14 @@ fn exporter_is_deterministic_matches_clean_room_contract_and_never_leaks_secrets
 
     let out = dir.path().join("out");
     let result = export_session(&workspace, SESSION_ID, &out).unwrap();
-    assert_eq!(result.files, vec!["harness-spec.md", "harness-spec.json", "tool-schemas/shell.json"]);
+    assert_eq!(
+        result.files,
+        vec![
+            "harness-spec.md",
+            "harness-spec.json",
+            "tool-schemas/shell.json"
+        ]
+    );
 
     let md = fs::read_to_string(out.join("harness-spec.md")).unwrap();
     let spec = fs::read_to_string(out.join("harness-spec.json")).unwrap();
