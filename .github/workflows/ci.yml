@@ -22,9 +22,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install locked Node dependencies
-        run: npm ci
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Node tests
         run: npm test
         env:
@@ -65,9 +63,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install locked Node dependencies
-        run: npm ci
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.1 --profile minimal
       - name: Node/Rust semantic parity
@@ -92,9 +88,7 @@ jobs:
           rustup toolchain install 1.98.1 --profile minimal
           rustup target add --toolchain 1.98.1 x86_64-pc-windows-msvc
       - name: Install locked desktop dependencies
-        run: npm ci
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify before native packaging
         run: |
           npm test
@@ -142,9 +136,7 @@ jobs:
           rustup toolchain install 1.98.1 --profile minimal
           rustup target add --toolchain 1.98.1 aarch64-apple-darwin x86_64-apple-darwin
       - name: Install locked desktop dependencies
-        run: npm ci
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify before native packaging
         run: |
           npm test
