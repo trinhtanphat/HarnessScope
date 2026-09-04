@@ -15,7 +15,7 @@ test('preload bridge exposes only the documented versioned desktop API', async (
     return { ok: true, value: channel };
   });
 
-  assert.deepEqual(Object.keys(api).sort(), ['app','compare','dialog','export','import','inference','launch','session','timeline','workspace']);
+  assert.deepEqual(Object.keys(api).sort(), ['app','collector','compare','dialog','export','import','inference','launch','session','timeline','workspace']);
   assert.deepEqual(Object.keys(api.app), ['info']);
   assert.deepEqual(Object.keys(api.workspace), ['info']);
   assert.deepEqual(Object.keys(api.session).sort(), ['create','list']);
@@ -25,6 +25,7 @@ test('preload bridge exposes only the documented versioned desktop API', async (
   assert.deepEqual(Object.keys(api.import).sort(), ['har','jsonl','procmon']);
   assert.deepEqual(Object.keys(api.launch), ['run']);
   assert.deepEqual(Object.keys(api.export), ['run']);
+  assert.deepEqual(Object.keys(api.collector).sort(), ['describe','list','start','status','stop']);
   assert.deepEqual(Object.keys(api.dialog).sort(), ['pickDirectory','pickFile']);
 
   await api.session.create({ name: 'demo', mode: 'desktop' });
@@ -40,6 +41,8 @@ test('IPC registration is an exact allowlist and normalizes handler results', as
     timelineGet: async () => ({}), inferenceRun: async () => ({}), compareRun: async () => ({}),
     importHar: async () => ({}), importProcmon: async () => ({}), importJsonl: async () => ({}),
     launchRun: async () => ({}), exportRun: async () => ({}),
+    collectorList: async () => [], collectorDescribe: async () => null,
+    collectorStart: async () => ({}), collectorStop: async () => ({}), collectorStatus: async () => ({}),
     pickDirectory: async () => null, pickFile: async () => null
   };
 
