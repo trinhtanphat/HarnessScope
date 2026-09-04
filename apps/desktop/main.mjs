@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { acquireWorkspaceLock } from '../../src/core/workspace-lock.mjs';
 import { defaultWorkspacePath } from './paths.mjs';
 import { createDesktopServices } from './services.mjs';
 import { registerIpcHandlers } from './ipc.mjs';
@@ -64,14 +65,25 @@ function createWindow() {
 
 await app.whenReady();
 
-const services = createDesktopServices({
-  dbPath: defaultWorkspacePath(app.getPath('userData')),
-  dialogs: nativeDialogs(),
-  appInfo: { name: app.getName(), version: app.getVersion() },
-  platform: process.platform
+const dbPath = defaultWorkspacePath(app.getPath('userData'));
+const workspaceLease = acquireWorkspaceLock(dbPath, { runtime: 'electron-desktop' });
+app.on('before-quit', () => {
+  workspaceLease.release();
 });
-registerIpcHandlers({ ipcMain, services });
-createWindow();
+
+try {
+  const services = createDesktopServices({
+    dbPath,
+    dialogs: nativeDialogs(),
+    appInfo: { name: app.getName(), version: app.getVersion() },
+    platform: process.platform
+  });
+  registerIpcHandlers({ ipcMain, services });
+  createWindow();
+} catch (error) {
+  workspaceLease.release();
+  throw error;
+}
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
