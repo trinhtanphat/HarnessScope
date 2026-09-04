@@ -55,19 +55,13 @@ pub fn import_har(path: &Path) -> Result<Vec<TraceEventInput>, CoreError> {
         let mut request_raw = Map::new();
         request_raw.insert(
             "method".into(),
-            request
-                .get("method")
-                .cloned()
-                .unwrap_or(Value::Null),
+            request.get("method").cloned().unwrap_or(Value::Null),
         );
         request_raw.insert(
             "url".into(),
             request.get("url").cloned().unwrap_or(Value::Null),
         );
-        request_raw.insert(
-            "headers".into(),
-            headers_to_object(request.get("headers")),
-        );
+        request_raw.insert("headers".into(), headers_to_object(request.get("headers")));
         request_raw.insert(
             "body".into(),
             parse_body(request.get("postData").and_then(|value| value.get("text"))),
@@ -86,10 +80,7 @@ pub fn import_har(path: &Path) -> Result<Vec<TraceEventInput>, CoreError> {
             "status".into(),
             response.get("status").cloned().unwrap_or(Value::Null),
         );
-        response_raw.insert(
-            "headers".into(),
-            headers_to_object(response.get("headers")),
-        );
+        response_raw.insert("headers".into(), headers_to_object(response.get("headers")));
         response_raw.insert(
             "body".into(),
             parse_body(response.get("content").and_then(|value| value.get("text"))),
@@ -121,7 +112,14 @@ pub fn import_har(path: &Path) -> Result<Vec<TraceEventInput>, CoreError> {
             kind: "HttpResponse".into(),
             correlation_id: Some(correlation_id),
             data: response.value,
-            redaction: Some(if response.redacted { "redacted" } else { "none" }.into()),
+            redaction: Some(
+                if response.redacted {
+                    "redacted"
+                } else {
+                    "none"
+                }
+                .into(),
+            ),
         });
     }
 
