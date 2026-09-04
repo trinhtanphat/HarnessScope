@@ -109,10 +109,8 @@ fn file_data(path: &Path, hash_files: bool) -> Value {
     if let Some(metadata) = metadata {
         data["size"] = json!(metadata.len());
     }
-    if hash_files {
-        if let Some(hash) = sha256(path) {
-            data["sha256"] = json!(hash);
-        }
+    if hash_files && let Some(hash) = sha256(path) {
+        data["sha256"] = json!(hash);
     }
     data
 }
