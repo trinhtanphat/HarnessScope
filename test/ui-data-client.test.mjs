@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDataClient } from '../ui/data-client.js';
+import { createTauriBridge } from '../ui/tauri-bridge.js';
 
 function bridgeWith(overrides = {}) {
   return {
@@ -34,6 +35,30 @@ test('desktop data client unwraps the versioned bridge and exposes native operat
   assert.equal((await client.importEvidence('har','s1')).imported, 2);
   assert.equal((await client.launch('s1',{ target:'node', args:[] })).exitCode, 0);
   assert.equal((await client.exportSession('s1')).outDir, '/tmp/export');
+});
+
+test('Tauri bridge maps invoke commands to the Electron-compatible renderer shape', async () => {
+  const calls = [];
+  const tauri = {
+    core: {
+      invoke: async (command, args = {}) => {
+        calls.push([command, args]);
+        return { ok:true, value:{ command, args } };
+      }
+    }
+  };
+  const bridge = createTauriBridge(tauri);
+  await bridge.app.info();
+  await bridge.session.create({ name:'n', mode:'desktop' });
+  await bridge.compare.run('a','b');
+  await bridge.import.jsonl('s','trace.jsonl','map.yaml');
+  await bridge.launch.run('s',{ target:'node', args:[] });
+  await bridge.dialog.pickFile([{ name:'HAR', extensions:['har'] }]);
+  assert.deepEqual(calls.map(([command]) => command), [
+    'app_info', 'session_create', 'compare_run', 'import_jsonl', 'launch_run', 'dialog_pick_file'
+  ]);
+  assert.deepEqual(calls[1][1], { input:{ name:'n', mode:'desktop' } });
+  assert.deepEqual(calls[2][1], { sessionA:'a', sessionB:'b' });
 });
 
 test('desktop data client surfaces only safe error code/message from failed envelopes', async () => {
