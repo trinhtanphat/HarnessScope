@@ -1,0 +1,19 @@
+[package]
+name = "harnesscope-collectors"
+version = "0.4.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+harnesscope-collector-sdk = { path = "../harnesscope-collector-sdk" }
+serde_json.workspace = true
+thiserror.workspace = true
+crossbeam-channel.workspace = true
+notify.workspace = true
+sha2.workspace = true
+sysinfo.workspace = true
+time.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
