@@ -1,4 +1,5 @@
-use harnesscope_core::SessionSnapshot;
+use harnesscope_core::{SessionSnapshot, redact_value};
+use serde_json::Value;
 use std::{env, fs, process::ExitCode};
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -14,6 +15,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             let text = fs::read_to_string(fixture)?;
             let snapshot: SessionSnapshot = serde_json::from_str(&text)?;
             println!("{}", serde_json::to_string(&snapshot)?);
+            Ok(())
+        }
+        "redaction" => {
+            let text = fs::read_to_string(fixture)?;
+            let items: Vec<Value> = serde_json::from_str(&text)?;
+            let output = items
+                .iter()
+                .map(|item| {
+                    let value = item.get("value").unwrap_or(&Value::Null);
+                    let key_hint = item.get("keyHint").and_then(Value::as_str).unwrap_or("");
+                    redact_value(value, key_hint)
+                })
+                .collect::<Vec<_>>();
+            println!("{}", serde_json::to_string(&output)?);
             Ok(())
         }
         _ => Err(format!("unsupported parity case: {case}").into()),
