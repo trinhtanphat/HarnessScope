@@ -1,6 +1,6 @@
 use harnesscope_collector_sdk::{
-    CollectorCapability, CollectorEnvelope, CollectorEnvelopeKind, CollectorManifest,
-    CollectorProtocolError, COLLECTOR_SDK_VERSION, MAX_ENVELOPE_BYTES, validate_envelope,
+    COLLECTOR_SDK_VERSION, CollectorCapability, CollectorEnvelope, CollectorEnvelopeKind,
+    CollectorManifest, CollectorProtocolError, MAX_ENVELOPE_BYTES, validate_envelope,
     validate_manifest,
 };
 use serde_json::{Value, json};
