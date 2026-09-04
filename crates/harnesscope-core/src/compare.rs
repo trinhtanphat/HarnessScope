@@ -2,12 +2,19 @@ use crate::{CompareResult, SessionSnapshot};
 use std::collections::BTreeSet;
 
 fn sorted_set(values: impl IntoIterator<Item = String>) -> Vec<String> {
-    values.into_iter().collect::<BTreeSet<_>>().into_iter().collect()
+    values
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn difference(a: &[String], b: &[String]) -> Vec<String> {
     let b = b.iter().collect::<BTreeSet<_>>();
-    a.iter().filter(|value| !b.contains(value)).cloned().collect()
+    a.iter()
+        .filter(|value| !b.contains(value))
+        .cloned()
+        .collect()
 }
 
 pub fn compare_sessions(a: &SessionSnapshot, b: &SessionSnapshot) -> CompareResult {

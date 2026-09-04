@@ -1,4 +1,6 @@
-use harnesscope_core::{SessionSnapshot, TraceEvent, compare_sessions, infer_findings, redact_value};
+use harnesscope_core::{
+    SessionSnapshot, TraceEvent, compare_sessions, infer_findings, redact_value,
+};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{env, fs, process::ExitCode};

@@ -19,8 +19,5 @@ fn compares_observable_session_capabilities() {
         vec!["PermissionDecision", "PermissionPrompt"]
     );
     assert_eq!(diff.only_b_event_kinds, vec!["ResumeMarker", "SkillRead"]);
-    assert_eq!(
-        diff.only_b_finding_categories,
-        vec!["session_persistence"]
-    );
+    assert_eq!(diff.only_b_finding_categories, vec!["session_persistence"]);
 }

@@ -53,7 +53,10 @@ pub fn infer_findings(events: &[TraceEvent]) -> Vec<Finding> {
         .map(|(_, event)| *event)
         .collect::<Vec<_>>();
     if !skill_reads.is_empty() {
-        let paths = skill_reads.iter().filter_map(|event| path_of(event)).collect::<Vec<_>>();
+        let paths = skill_reads
+            .iter()
+            .filter_map(|event| path_of(event))
+            .collect::<Vec<_>>();
         let suffix = if paths.is_empty() {
             String::new()
         } else {
@@ -77,11 +80,13 @@ pub fn infer_findings(events: &[TraceEvent]) -> Vec<Finding> {
         .copied()
         .filter(|event| event.kind == "PermissionPrompt")
     {
-        let correlation = prompt.correlation_id.as_deref().filter(|value| !value.is_empty());
+        let correlation = prompt
+            .correlation_id
+            .as_deref()
+            .filter(|value| !value.is_empty());
         let decision = correlation.and_then(|value| {
             ordered.iter().copied().find(|event| {
-                event.kind == "PermissionDecision"
-                    && event.correlation_id.as_deref() == Some(value)
+                event.kind == "PermissionDecision" && event.correlation_id.as_deref() == Some(value)
             })
         });
         if let Some(decision) = decision {
@@ -230,7 +235,10 @@ pub fn infer_findings(events: &[TraceEvent]) -> Vec<Finding> {
         ));
     }
 
-    if let Some(exit_index) = ordered.iter().position(|event| event.kind == "ProcessExited") {
+    if let Some(exit_index) = ordered
+        .iter()
+        .position(|event| event.kind == "ProcessExited")
+    {
         let written_before_exit = ordered[..exit_index]
             .iter()
             .copied()
