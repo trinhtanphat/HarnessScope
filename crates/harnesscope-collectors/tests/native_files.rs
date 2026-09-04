@@ -85,8 +85,10 @@ fn observes_only_selected_directory_file_metadata() {
         "missing file metadata evidence: {events:?}"
     );
 
-    let selected_text = selected.to_string_lossy();
-    let sibling_text = sibling.to_string_lossy();
+    let selected_canonical = fs::canonicalize(&selected).unwrap();
+    let sibling_canonical = fs::canonicalize(&sibling).unwrap();
+    let selected_text = selected_canonical.to_string_lossy();
+    let sibling_text = sibling_canonical.to_string_lossy();
     assert!(file_events.iter().any(|event| {
         event["data"]["path"]
             .as_str()
