@@ -1,0 +1,26 @@
+[
+  {
+    "keyHint": "",
+    "value": {
+      "Authorization": "Bearer should-never-survive-123456",
+      "nested": {
+        "api_key": "sk_ABCDEFGHIJKLMNOPQRSTUVWX",
+        "safe": "ok"
+      },
+      "cookie": "session=secret-cookie",
+      "url": "https://example.test/path?token=secret-query&x=1"
+    }
+  },
+  {
+    "keyHint": "",
+    "value": [
+      "safe",
+      "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+      "Bearer abcdefghijklmnopqrstuvwxyz.123456"
+    ]
+  },
+  {
+    "keyHint": "client_secret",
+    "value": "plain-secret-value"
+  }
+]

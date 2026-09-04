@@ -26,6 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
       - name: Rust format
@@ -34,6 +37,10 @@ jobs:
         run: cargo +1.98.1 clippy --workspace --all-targets -- -D warnings
       - name: Rust tests
         run: cargo +1.98.1 test --workspace
+      - name: Node/Rust redaction parity
+        run: node --test test/v03-parity-redaction.test.mjs
+        env:
+          HARNESSCOPE_RUST_PARITY: "1"
 
   desktop-windows:
     name: desktop-windows
