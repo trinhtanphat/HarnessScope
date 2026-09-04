@@ -1,14 +1,74 @@
 {
   "name": "harnesscope",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Clean-room coding-agent harness inspector and behavioral spec exporter",
-  "bin": {"harnesscope": "./bin/harnesscope.mjs"},
+  "main": "apps/desktop/main.mjs",
+  "bin": {
+    "harnesscope": "./bin/harnesscope.mjs"
+  },
   "scripts": {
     "test": "node --test",
-    "start": "node ./bin/harnesscope.mjs"
+    "start": "node ./bin/harnesscope.mjs",
+    "desktop": "electron .",
+    "desktop:pack": "electron-builder --dir",
+    "desktop:win": "electron-builder --win nsis zip --x64",
+    "desktop:mac": "electron-builder --mac dmg zip --universal"
   },
-  "engines": {"node": ">=22"},
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "electron": "44.1.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.trinhtanphat.harnessscope",
+    "productName": "HarnessScope",
+    "asar": true,
+    "directories": {
+      "output": "dist/desktop"
+    },
+    "files": [
+      "apps/desktop/**/*",
+      "src/**/*",
+      "ui/**/*",
+      "package.json",
+      "LICENSE"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "HarnessScope-${version}-windows-portable.${ext}"
+    },
+    "nsis": {
+      "artifactName": "HarnessScope-${version}-Setup.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["universal"]
+        }
+      ],
+      "artifactName": "HarnessScope-${version}-macos-universal.${ext}",
+      "category": "public.app-category.developer-tools"
+    }
+  },
   "license": "Apache-2.0"
 }
