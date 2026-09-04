@@ -2,9 +2,7 @@ mod files;
 mod process;
 mod runtime;
 
-use harnesscope_collector_sdk::{
-    COLLECTOR_SDK_VERSION, CollectorCapability, CollectorManifest,
-};
+use harnesscope_collector_sdk::{COLLECTOR_SDK_VERSION, CollectorCapability, CollectorManifest};
 
 pub use runtime::{CollectorHandle, CollectorRuntimeError, spawn_first_party};
 
