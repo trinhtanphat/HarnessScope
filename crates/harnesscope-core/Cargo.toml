@@ -6,6 +6,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+csv.workspace = true
 regex.workspace = true
 rusqlite.workspace = true
 serde.workspace = true

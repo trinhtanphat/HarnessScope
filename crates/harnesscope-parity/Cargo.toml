@@ -9,3 +9,4 @@ publish = false
 harnesscope-core = { path = "../harnesscope-core" }
 serde.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true

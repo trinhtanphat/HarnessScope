@@ -38,7 +38,7 @@ jobs:
       - name: Rust tests
         run: cargo +1.98.1 test --workspace
       - name: Node/Rust semantic parity
-        run: node --test test/v03-parity-redaction.test.mjs test/v03-parity-inference.test.mjs test/v03-parity-compare.test.mjs
+        run: node --test test/v03-parity-redaction.test.mjs test/v03-parity-inference.test.mjs test/v03-parity-compare.test.mjs test/v03-parity-import-export.test.mjs
         env:
           HARNESSCOPE_RUST_PARITY: "1"
 
