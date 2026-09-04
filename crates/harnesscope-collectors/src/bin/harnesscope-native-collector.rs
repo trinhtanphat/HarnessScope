@@ -8,12 +8,15 @@ use std::{
     time::Duration,
 };
 
-fn write_json_line<T: serde::Serialize>(value: &T) -> io::Result<()> {
+fn write_json_line<T: serde::Serialize>(
+    value: &T,
+) -> Result<(), Box<dyn std::error::Error>> {
     let stdout = io::stdout();
     let mut lock = stdout.lock();
     serde_json::to_writer(&mut lock, value)?;
     lock.write_all(b"\n")?;
-    lock.flush()
+    lock.flush()?;
+    Ok(())
 }
 
 fn main() {
@@ -85,10 +88,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    output_thread
+    let output_result = output_thread
         .join()
-        .map_err(|_| "COLLECTOR_RUNTIME_FAILED: output thread panicked")?
-        .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
+        .map_err(|_| io::Error::other("COLLECTOR_RUNTIME_FAILED: output thread panicked"))?;
+    output_result.map_err(io::Error::other)?;
 
     match handle.status() {
         CollectorStatus::Stopped => Ok(()),
