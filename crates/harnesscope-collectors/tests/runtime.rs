@@ -6,8 +6,7 @@ use harnesscope_collectors::{first_party_manifests, spawn_first_party};
 use std::{path::PathBuf, time::Duration};
 
 fn fixture_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures/collectors/synthetic-target.mjs")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/collectors/synthetic-target.mjs")
 }
 
 fn platform_collector_id() -> Option<&'static str> {
@@ -30,8 +29,16 @@ fn first_party_manifest_matches_current_platform_only() {
             assert_eq!(manifest.sdk_version, COLLECTOR_SDK_VERSION);
             assert_eq!(manifest.id, id);
             assert_eq!(manifest.version, "0.4.0");
-            assert!(manifest.capabilities.contains(&CollectorCapability::ProcessLifecycle));
-            assert!(manifest.capabilities.contains(&CollectorCapability::FileMetadata));
+            assert!(
+                manifest
+                    .capabilities
+                    .contains(&CollectorCapability::ProcessLifecycle)
+            );
+            assert!(
+                manifest
+                    .capabilities
+                    .contains(&CollectorCapability::FileMetadata)
+            );
             assert!(manifest.requires_explicit_paths);
             assert!(manifest.requires_target_launch);
             assert_eq!(manifest.content_capture, "unsupported");
@@ -61,8 +68,14 @@ fn owned_collector_can_be_stopped_idempotently() {
         }),
     };
     let handle = spawn_first_party(request).unwrap();
-    assert!(matches!(handle.status(), CollectorStatus::Starting | CollectorStatus::Running));
+    assert!(matches!(
+        handle.status(),
+        CollectorStatus::Starting | CollectorStatus::Running
+    ));
     let stopped = handle.stop(Duration::from_secs(3)).unwrap();
     assert_eq!(stopped, CollectorStatus::Stopped);
-    assert_eq!(handle.stop(Duration::from_millis(100)).unwrap(), CollectorStatus::Stopped);
+    assert_eq!(
+        handle.stop(Duration::from_millis(100)).unwrap(),
+        CollectorStatus::Stopped
+    );
 }
