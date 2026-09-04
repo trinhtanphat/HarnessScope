@@ -1,0 +1,35 @@
+name: bootstrap-v02-fixture
+
+on:
+  push:
+    branches:
+      - feature/v0.3-tauri-rust-incremental
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate-fixture:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate v0.2 compatibility fixture
+        run: node scripts/make-v02-workspace-fixture.mjs
+      - name: Commit exact generated binary if needed
+        shell: bash
+        run: |
+          git add fixtures/v02-workspace/workspace.sqlite
+          if git diff --cached --quiet; then
+            echo "Fixture already exact."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "build: regenerate v0.2 fixture [skip ci]"
+          git push origin HEAD:${GITHUB_REF_NAME}
