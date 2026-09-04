@@ -17,7 +17,7 @@ test('package metadata pins HarnessScope desktop v0.2 toolchain', () => {
 
 test('electron-builder package is ASAR-bounded and targets unsigned Windows/macOS desktop artifacts', () => {
   const build = pkg.build;
-  assert.equal(build.appId, 'com.trinhtanphat.harnessscope');
+  assert.equal(build.appId, 'com.trinhtanphat.harnesscope');
   assert.equal(build.productName, 'HarnessScope');
   assert.equal(build.asar, true);
   assert.equal(build.directories.output, 'dist/desktop');
@@ -35,5 +35,9 @@ test('electron-builder package is ASAR-bounded and targets unsigned Windows/macO
   assert.ok(macTargets.some((target) => target.target === 'zip' && target.arch.includes('universal')));
   assert.equal(build.mac.artifactName, 'HarnessScope-${version}-macos-universal.${ext}');
   assert.equal(Object.hasOwn(build.mac, 'identity'), false);
-  assert.equal(pkg.scripts['desktop:mac'].includes('--publish'), false);
+});
+
+test('CI packaging scripts explicitly disable electron-builder implicit publishing', () => {
+  assert.match(pkg.scripts?.['desktop:win'] || '', /--publish\s+never/);
+  assert.match(pkg.scripts?.['desktop:mac'] || '', /--publish\s+never/);
 });
