@@ -12,9 +12,9 @@
     "test": "node --test",
     "start": "node ./bin/harnesscope.mjs",
     "desktop": "electron .",
-    "desktop:pack": "electron-builder --dir",
-    "desktop:win": "electron-builder --win nsis zip --x64",
-    "desktop:mac": "electron-builder --mac dmg zip --universal"
+    "desktop:pack": "electron-builder --dir --publish never",
+    "desktop:win": "electron-builder --win nsis zip --x64 --publish never",
+    "desktop:mac": "electron-builder --mac dmg zip --universal --publish never"
   },
   "engines": {
     "node": ">=22"
@@ -24,7 +24,7 @@
     "electron-builder": "26.15.3"
   },
   "build": {
-    "appId": "com.trinhtanphat.harnessscope",
+    "appId": "com.trinhtanphat.harnesscope",
     "productName": "HarnessScope",
     "asar": true,
     "directories": {
