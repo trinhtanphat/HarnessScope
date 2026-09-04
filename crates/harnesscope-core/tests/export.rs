@@ -48,6 +48,7 @@ fn exporter_is_deterministic_matches_clean_room_contract_and_never_leaks_secrets
         vec![
             "harness-spec.md",
             "harness-spec.json",
+            "tool-schemas/fixture-tool.json",
             "tool-schemas/shell.json"
         ]
     );
@@ -67,7 +68,8 @@ fn exporter_is_deterministic_matches_clean_room_contract_and_never_leaks_secrets
 
     let parsed: serde_json::Value = serde_json::from_str(&spec).unwrap();
     assert_eq!(parsed["format"], "harnesscope.cleanroom-spec.v1");
-    assert_eq!(parsed["tools"][0]["name"], "shell");
+    assert_eq!(parsed["tools"][0]["name"], "fixture-tool");
+    assert_eq!(parsed["tools"][1]["name"], "shell");
     assert_eq!(parsed["findings"][0]["status"], "INFERRED_HIGH");
 }
 
