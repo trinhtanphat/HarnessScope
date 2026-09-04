@@ -26,4 +26,14 @@ test('UI server exposes sessions, trace/finding provenance and static app', asyn
   const html = await (await fetch(`${base}/`)).text();
   assert.match(html, /HarnessScope/);
   assert.match(html, /Trace/);
+  assert.match(html, /Content-Security-Policy/i);
+  assert.match(html, /\.\/styles\.css/);
+  assert.match(html, /\.\/data-client\.js/);
+  assert.match(html, /\.\/app\.js/);
+  assert.match(html, /id="newSessionBtn"/);
+  assert.match(html, /id="importBtn"/);
+  assert.match(html, /id="launchBtn"/);
+  assert.match(html, /id="compareBtn"/);
+  assert.match(html, /id="exportBtn"/);
+  assert.match(html, /id="platformBadge"/);
 });
