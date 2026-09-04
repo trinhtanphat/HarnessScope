@@ -7,6 +7,15 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
 
+const icons = [
+  'icons/32x32.png',
+  'icons/128x128.png',
+  'icons/128x128@2x.png',
+  'icons/icon.png',
+  'icons/icon.icns',
+  'icons/icon.ico'
+];
+
 const required = [
   'apps/tauri/README.md',
   'apps/tauri/src-tauri/Cargo.toml',
@@ -17,6 +26,7 @@ const required = [
   'apps/tauri/src-tauri/src/commands.rs',
   'apps/tauri/src-tauri/src/state.rs',
   'apps/tauri/src-tauri/src/errors.rs',
+  ...icons.map((icon) => `apps/tauri/src-tauri/${icon}`),
   'ui/tauri-bridge.js'
 ];
 
@@ -26,7 +36,7 @@ const commands = [
   'launch_run', 'export_run', 'dialog_pick_directory', 'dialog_pick_file'
 ];
 
-test('v0.3 Tauri shell files and pinned least-privilege contract exist', () => {
+test('v0.3 Tauri shell files, valid icon contract, and pinned least-privilege contract exist', () => {
   for (const path of required) assert.equal(existsSync(resolve(root, path)), true, `missing ${path}`);
 
   const workspace = read('Cargo.toml');
@@ -46,6 +56,7 @@ test('v0.3 Tauri shell files and pinned least-privilege contract exist', () => {
   assert.equal(config.build.frontendDist, '../../../ui');
   assert.equal(config.app.withGlobalTauri, true);
   assert.deepEqual(config.bundle.targets, ['nsis', 'msi', 'dmg', 'app']);
+  assert.deepEqual(config.bundle.icon, icons);
   assert.match(config.app.security.csp, /connect-src 'self' ipc: http:\/\/ipc\.localhost/);
 
   const capabilities = read('apps/tauri/src-tauri/capabilities/main.json');
