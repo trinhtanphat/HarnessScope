@@ -1,7 +1,6 @@
 use crossbeam_channel::{Receiver, unbounded};
 use notify::{
-    Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
-    event::ModifyKind,
+    Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher, event::ModifyKind,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -128,11 +127,7 @@ fn event_kind(kind: &EventKind) -> Option<&'static str> {
     }
 }
 
-pub(crate) fn map_event(
-    event: &Event,
-    roots: &[PathBuf],
-    hash_files: bool,
-) -> Vec<Value> {
+pub(crate) fn map_event(event: &Event, roots: &[PathBuf], hash_files: bool) -> Vec<Value> {
     let Some(kind) = event_kind(&event.kind) else {
         return Vec::new();
     };
