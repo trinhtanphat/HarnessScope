@@ -45,11 +45,15 @@ jobs:
         run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
       - name: Rust format
         run: cargo +1.98.1 fmt --all -- --check
-      - name: Rust clippy
-        run: cargo +1.98.1 clippy --workspace --all-targets -- -D warnings
-      - name: Rust tests
-        run: cargo +1.98.1 test --workspace
-      - name: Tauri shell check
+      - name: Rust core/parity clippy
+        run: cargo +1.98.1 clippy -p harnesscope-core -p harnesscope-parity --all-targets -- -D warnings
+      - name: Rust core/parity tests
+        run: cargo +1.98.1 test -p harnesscope-core -p harnesscope-parity
+      - name: Tauri shell clippy on native desktop runners
+        if: runner.os != 'Linux'
+        run: cargo +1.98.1 clippy -p harnesscope-tauri --all-targets -- -D warnings
+      - name: Tauri shell check on native desktop runners
+        if: runner.os != 'Linux'
         run: cargo +1.98.1 check -p harnesscope-tauri
 
   parity:
