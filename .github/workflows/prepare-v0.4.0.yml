@@ -32,161 +32,55 @@ jobs:
           import json
           import pathlib
           import re
-
           root = pathlib.Path('.')
-
-          def read(path):
-              return (root / path).read_text(encoding='utf-8')
-
-          def write(path, text):
-              (root / path).write_text(text, encoding='utf-8')
-
+          def read(path): return (root / path).read_text(encoding='utf-8')
+          def write(path, text): (root / path).write_text(text, encoding='utf-8')
           def update_json_version(path):
-              value = json.loads(read(path))
-              value['version'] = '0.4.0'
-              write(path, json.dumps(value, indent=2, ensure_ascii=False) + '\n')
-
+              value = json.loads(read(path)); value['version'] = '0.4.0'; write(path, json.dumps(value, indent=2, ensure_ascii=False) + '\n')
           update_json_version('package.json')
           update_json_version('apps/tauri/src-tauri/tauri.conf.json')
-
-          for path in [
-              'crates/harnesscope-core/Cargo.toml',
-              'crates/harnesscope-parity/Cargo.toml',
-              'crates/harnesscope-collector-sdk/Cargo.toml',
-              'crates/harnesscope-collectors/Cargo.toml',
-              'apps/tauri/src-tauri/Cargo.toml',
-          ]:
+          for path in ['crates/harnesscope-core/Cargo.toml','crates/harnesscope-parity/Cargo.toml','crates/harnesscope-collector-sdk/Cargo.toml','crates/harnesscope-collectors/Cargo.toml','apps/tauri/src-tauri/Cargo.toml']:
               text = read(path)
               updated, count = re.subn(r'(?m)^version\s*=\s*"(?:0\.3\.0|0\.4\.0)"$', 'version = "0.4.0"', text, count=1)
-              if count != 1:
-                  raise SystemExit(f'Expected one package version in {path}, found {count}')
+              if count != 1: raise SystemExit(f'Expected one package version in {path}, found {count}')
               write(path, updated)
-
-          for path in ['.github/workflows/ci.yml', 'scripts/package-macos-app.sh']:
+          for path in ['.github/workflows/ci.yml','scripts/package-macos-app.sh']:
               text = read(path)
-              if '0.3.0' not in text:
-                  raise SystemExit(f'Expected stale v0.3 artifact names in {path}')
-              write(path, text.replace('0.3.0', '0.4.0'))
-
-          windows = read('scripts/package-windows-portable.ps1')
-          windows = windows.replace('0.3.0', '0.4.0').replace('v03', 'v04').replace('V0.3', 'V0.4')
+              if '0.3.0' not in text: raise SystemExit(f'Expected stale v0.3 artifact names in {path}')
+              write(path, text.replace('0.3.0','0.4.0'))
+          windows = read('scripts/package-windows-portable.ps1').replace('0.3.0','0.4.0').replace('v03','v04').replace('V0.3','V0.4')
           write('scripts/package-windows-portable.ps1', windows)
-
           release = read('.github/workflows/release-v0.3.0.yml')
-          release = release.replace('release-v0.3.0', 'release-v0.4.0')
-          release = release.replace('v0.3.0', 'v0.4.0').replace('0.3.0', '0.4.0').replace('V0.3', 'V0.4').replace('v0.3', 'v0.4')
+          release = release.replace('release-v0.3.0','release-v0.4.0').replace('v0.3.0','v0.4.0').replace('0.3.0','0.4.0').replace('V0.3','V0.4').replace('v0.3','v0.4')
           needle = 'cargo +1.98.1 test -p harnesscope-core -p harnesscope-parity\n          cargo +1.98.1 clippy -p harnesscope-tauri --all-targets -- -D warnings'
           replacement = 'cargo +1.98.1 test -p harnesscope-core -p harnesscope-parity\n          cargo +1.98.1 clippy -p harnesscope-collector-sdk --all-targets -- -D warnings\n          cargo +1.98.1 test -p harnesscope-collector-sdk\n          cargo +1.98.1 clippy -p harnesscope-collectors --all-targets -- -D warnings\n          cargo +1.98.1 test -p harnesscope-collectors\n          cargo +1.98.1 clippy -p harnesscope-tauri --all-targets -- -D warnings'
-          if release.count(needle) != 2:
-              raise SystemExit(f'Expected two native release verification blocks, found {release.count(needle)}')
-          release = release.replace(needle, replacement)
-          write('.github/workflows/release-v0.4.0.yml', release)
+          if release.count(needle) != 2: raise SystemExit(f'Expected two native release verification blocks, found {release.count(needle)}')
+          write('.github/workflows/release-v0.4.0.yml', release.replace(needle, replacement))
           (root / '.github/workflows/release-v0.3.0.yml').unlink()
-
-          tauri_readme = read('apps/tauri/README.md')
-          tauri_readme = tauri_readme.replace('v0.3.0', 'v0.4.0').replace('0.3.0', '0.4.0').replace('v0.3', 'v0.4')
-          note = '\n## Collector SDK v1 in the Tauri runtime\n\nHarnessScope v0.4 keeps collector execution behind the explicit desktop command allowlist. Tauri owns the first-party Rust collector runtime directly; renderer code receives only versioned collector list/describe/start/stop/status actions. First-party macOS/Linux collectors observe owned process lifecycle/metadata plus explicitly selected file metadata. Linux remains a CLI/source collector target, not a v0.4 desktop artifact. File-content capture, privilege escalation, process-memory scraping, injection, and security-control bypass are unsupported.\n'
-          marker = '\n## Electron fallback\n'
+          tauri_readme = read('apps/tauri/README.md').replace('v0.3.0','v0.4.0').replace('0.3.0','0.4.0').replace('v0.3','v0.4')
           if '## Collector SDK v1 in the Tauri runtime' not in tauri_readme:
-              if marker not in tauri_readme:
-                  raise SystemExit('Tauri README marker missing')
+              marker = '\n## Electron fallback\n'
+              note = '\n## Collector SDK v1 in the Tauri runtime\n\nHarnessScope v0.4 keeps collector execution behind the explicit desktop command allowlist. Tauri owns the first-party Rust collector runtime directly; renderer code receives only versioned collector list/describe/start/stop/status actions. First-party macOS/Linux collectors observe owned process lifecycle/metadata plus explicitly selected file metadata. Linux remains a CLI/source collector target, not a v0.4 desktop artifact. File-content capture, privilege escalation, process-memory scraping, injection, and security-control bypass are unsupported.\n'
+              if marker not in tauri_readme: raise SystemExit('Tauri README marker missing')
               tauri_readme = tauri_readme.replace(marker, note + marker, 1)
           write('apps/tauri/README.md', tauri_readme)
-
-          readme = read('README.md')
-          readme = readme.replace('v0.3.0', 'v0.4.0').replace('0.3.0', '0.4.0').replace('V0.3', 'V0.4').replace('v0.3', 'v0.4')
+          readme = read('README.md').replace('v0.3.0','v0.4.0').replace('0.3.0','0.4.0').replace('V0.3','V0.4').replace('v0.3','v0.4')
           bullet = '- Rust `harnesscope-core` with Node/Rust semantic parity fixtures;\n'
           if '- Collector SDK v1 with a strict versioned NDJSON' not in readme:
-              if bullet not in readme:
-                  raise SystemExit('README bullet marker missing')
+              if bullet not in readme: raise SystemExit('README bullet marker missing')
               readme = readme.replace(bullet, bullet + '- Collector SDK v1 with a strict versioned NDJSON manifest/start/envelope contract;\n- isolated external collector hosting with bounded queues and redaction before persistence;\n- first-party macOS/Linux owned-process and explicit-path metadata collectors;\n', 1)
-          section = '''## Collector SDK v1 and native collectors
-
-V0.4 adds Collector Protocol/SDK v1 (`sdkVersion` exactly `"1"`). External collectors run only after explicit user selection, use NDJSON on stdout, stderr for human diagnostics, a 262144-byte line bound, and a 256-envelope bounded host queue. Every accepted event still goes through existing redaction before SQLite persistence.
-
-Build the first-party sidecar:
-
-```bash
-npm run collector:build
-```
-
-CLI examples:
-
-```bash
-node bin/harnesscope.mjs --db ./lab/workspace.sqlite collector list
-node bin/harnesscope.mjs --db ./lab/workspace.sqlite collector describe harnesscope.linux.process-files
-node bin/harnesscope.mjs --db ./lab/workspace.sqlite collector run harnesscope.linux.process-files --session <SESSION> --path ./authorized-dir -- <target-command>
-```
-
-macOS process fields are limited to metadata visible through supported OS APIs. Linux process visibility depends on the current user's `/proc` access and file metadata watching uses the native watcher backend (normally inotify through `notify`). Permission/visibility/watcher-limit failures are reported rather than bypassed. Selected file roots are explicit and canonicalized; file capture is metadata-only and optional hashing is limited to readable regular files still inside scope.
-
-HarnessScope does not provide authentication bypass, TLS-pinning bypass, process-memory scraping, code injection, protected-source extraction, privilege escalation, or disabling SIP/Gatekeeper/SELinux/AppArmor/other security controls. Tauri remains the preferred Windows/macOS runtime and Electron remains the compatibility fallback. See [`docs/collector-sdk-v1.md`](docs/collector-sdk-v1.md) for the wire contract.
-
-'''
-          marker = '## Portable Node CLI quick start\n'
+          section_lines = ['## Collector SDK v1 and native collectors','','V0.4 adds Collector Protocol/SDK v1 (`sdkVersion` exactly `"1"`). External collectors run only after explicit user selection, use NDJSON on stdout, stderr for human diagnostics, a 262144-byte line bound, and a 256-envelope bounded host queue. Every accepted event still goes through existing redaction before SQLite persistence.','','Build the first-party sidecar:','','```bash','npm run collector:build','```','','CLI examples:','','```bash','node bin/harnesscope.mjs --db ./lab/workspace.sqlite collector list','node bin/harnesscope.mjs --db ./lab/workspace.sqlite collector describe harnesscope.linux.process-files','node bin/harnesscope.mjs --db ./lab/workspace.sqlite collector run harnesscope.linux.process-files --session <SESSION> --path ./authorized-dir -- <target-command>','```','','macOS process fields are limited to metadata visible through supported OS APIs. Linux process visibility depends on the current user\'s `/proc` access and file metadata watching uses the native watcher backend (normally inotify through `notify`). Permission/visibility/watcher-limit failures are reported rather than bypassed. Selected file roots are explicit and canonicalized; file capture is metadata-only and optional hashing is limited to readable regular files still inside scope.','','HarnessScope does not provide authentication bypass, TLS-pinning bypass, process-memory scraping, code injection, protected-source extraction, privilege escalation, or disabling SIP/Gatekeeper/SELinux/AppArmor/other security controls. Tauri remains the preferred Windows/macOS runtime and Electron remains the compatibility fallback. See [`docs/collector-sdk-v1.md`](docs/collector-sdk-v1.md) for the wire contract.','']
           if '## Collector SDK v1 and native collectors\n' not in readme:
-              if marker not in readme:
-                  raise SystemExit('README section marker missing')
-              readme = readme.replace(marker, section + marker, 1)
-          readme = readme.replace('cargo clippy -p harnesscope-core -p harnesscope-parity --all-targets -- -D warnings\ncargo test -p harnesscope-core -p harnesscope-parity', 'cargo clippy -p harnesscope-core -p harnesscope-parity -p harnesscope-collector-sdk -p harnesscope-collectors --all-targets -- -D warnings\ncargo test -p harnesscope-core -p harnesscope-parity -p harnesscope-collector-sdk -p harnesscope-collectors')
-          readme = readme.replace('CI runs Node tests on Ubuntu, Windows and macOS, Rust core/parity checks on all three platforms, explicit semantic parity, and native Tauri package gates on Windows and macOS.', 'CI runs Node tests on Ubuntu, Windows and macOS, Rust core/parity checks on all three platforms, dedicated Linux/macOS native collector gates, explicit semantic parity, and native Tauri package gates on Windows and macOS.')
-          readme = readme.replace('crates/harnesscope-parity/ Node/Rust parity transport\n', 'crates/harnesscope-parity/ Node/Rust parity transport\ncrates/harnesscope-collector-sdk/ versioned Collector Protocol/SDK v1\ncrates/harnesscope-collectors/ first-party native collector runtime\n')
-          readme = readme.replace('src/core/              Node redaction, store, inference, compare, exporter\n', 'src/core/              Node redaction, store, inference, compare, exporter\nsrc/collectors/        Node collector protocol, registry, host, sidecar resolver\n')
+              marker = '## Portable Node CLI quick start\n'
+              if marker not in readme: raise SystemExit('README section marker missing')
+              readme = readme.replace(marker, '\n'.join(section_lines) + '\n' + marker, 1)
+          readme = readme.replace('cargo clippy -p harnesscope-core -p harnesscope-parity --all-targets -- -D warnings\ncargo test -p harnesscope-core -p harnesscope-parity','cargo clippy -p harnesscope-core -p harnesscope-parity -p harnesscope-collector-sdk -p harnesscope-collectors --all-targets -- -D warnings\ncargo test -p harnesscope-core -p harnesscope-parity -p harnesscope-collector-sdk -p harnesscope-collectors')
+          readme = readme.replace('CI runs Node tests on Ubuntu, Windows and macOS, Rust core/parity checks on all three platforms, explicit semantic parity, and native Tauri package gates on Windows and macOS.','CI runs Node tests on Ubuntu, Windows and macOS, Rust core/parity checks on all three platforms, dedicated Linux/macOS native collector gates, explicit semantic parity, and native Tauri package gates on Windows and macOS.')
+          readme = readme.replace('crates/harnesscope-parity/ Node/Rust parity transport\n','crates/harnesscope-parity/ Node/Rust parity transport\ncrates/harnesscope-collector-sdk/ versioned Collector Protocol/SDK v1\ncrates/harnesscope-collectors/ first-party native collector runtime\n')
+          readme = readme.replace('src/core/              Node redaction, store, inference, compare, exporter\n','src/core/              Node redaction, store, inference, compare, exporter\nsrc/collectors/        Node collector protocol, registry, host, sidecar resolver\n')
           write('README.md', readme)
-
-          doc = '''# HarnessScope Collector SDK v1
-
-Collector SDK v1 is a clean-room, versioned NDJSON protocol for explicitly selected HarnessScope evidence collectors. The protocol version string is exactly `"1"`. External collector stdout is protocol-only; human-readable logs use stderr. The host treats collector output as untrusted, validates it, then applies the existing redaction/persistence boundary.
-
-## Manifest handshake
-
-```json
-{"sdkVersion":"1","id":"harnesscope.linux.process-files","name":"HarnessScope Linux Process + Files","version":"0.4.0","platforms":["linux"],"capabilities":["process.lifecycle","process.metadata","file.metadata","collector.diagnostics"],"requiresExplicitPaths":true,"requiresTargetLaunch":true,"contentCapture":"unsupported"}
-```
-
-## Start request
-
-```json
-{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","requestedCapabilities":["process.lifecycle","process.metadata","file.metadata","collector.diagnostics"],"paths":["/home/user/authorized-project"],"hashFiles":false,"target":{"executable":"/usr/bin/node","args":["fixtures/collectors/synthetic-target.mjs"],"cwd":"/home/user/HarnessScope"}}
-```
-
-Requested capabilities must be a subset of the manifest. `paths` are explicit scope roots and `target` is an owned launch target, not arbitrary process attach.
-
-## Envelopes
-
-```json
-{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":1,"kind":"event","event":{"source":"collector","kind":"ProcessStarted","correlationId":"pid:1234","data":{"pid":1234}}}
-{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":2,"kind":"diagnostic","diagnostic":{"code":"PROCESS_VISIBILITY_LIMITED","message":"Some process metadata was not visible to the current user."}}
-{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":3,"kind":"heartbeat"}
-{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":4,"kind":"completed"}
-```
-
-Sequence numbers strictly increase. Event envelopes carry only `event`; diagnostic envelopes carry only `diagnostic`; heartbeat/completed carry neither. Every serialized protocol line is at most 262144 bytes and the host queue is bounded to 256 pending envelopes.
-
-## Stop control
-
-```json
-{"kind":"stop"}
-```
-
-EOF also requests graceful stop.
-
-## Host error codes
-
-- `COLLECTOR_INVALID_CONFIG` — malformed host/start configuration.
-- `COLLECTOR_START_FAILED` — selected collector could not start or receive its request.
-- `COLLECTOR_PROTOCOL_ERROR` — malformed/oversized manifest or envelope, or identity/shape mismatch.
-- `COLLECTOR_SEQUENCE_ERROR` — duplicate or non-increasing sequence.
-- `COLLECTOR_CAPABILITY_DENIED` — requested capability is absent from the manifest.
-- `COLLECTOR_BACKPRESSURE` — the 256-envelope host queue overflowed; the instance fails closed.
-- `COLLECTOR_RUNTIME_FAILED` — collector faulted/exited without a valid completed lifecycle.
-- `COLLECTOR_NOT_FOUND` — first-party sidecar was not resolved; build with `npm run collector:build` or use the explicit supported override.
-
-## Platform and safety boundaries
-
-macOS visibility is limited to metadata available to the current user through supported APIs; Linux visibility depends on `/proc` and the native file watcher backend. HarnessScope reports permission/visibility/watcher-limit failures. It does not escalate privileges, bypass authentication/TLS pinning, scrape process memory, inject code, extract protected source, or disable SIP/Gatekeeper/SELinux/AppArmor/other security controls. First-party file collection is metadata-only; optional hashes never persist file contents.
-'''
-          write('docs/collector-sdk-v1.md', doc)
+          doc_lines = ['# HarnessScope Collector SDK v1','','Collector SDK v1 is a clean-room, versioned NDJSON protocol for explicitly selected HarnessScope evidence collectors. The protocol version string is exactly `"1"`. External collector stdout is protocol-only; human-readable logs use stderr. The host treats collector output as untrusted, validates it, then applies the existing redaction/persistence boundary.','','## Manifest handshake','','```json','{"sdkVersion":"1","id":"harnesscope.linux.process-files","name":"HarnessScope Linux Process + Files","version":"0.4.0","platforms":["linux"],"capabilities":["process.lifecycle","process.metadata","file.metadata","collector.diagnostics"],"requiresExplicitPaths":true,"requiresTargetLaunch":true,"contentCapture":"unsupported"}','```','','## Start request','','```json','{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","requestedCapabilities":["process.lifecycle","process.metadata","file.metadata","collector.diagnostics"],"paths":["/home/user/authorized-project"],"hashFiles":false,"target":{"executable":"/usr/bin/node","args":["fixtures/collectors/synthetic-target.mjs"],"cwd":"/home/user/HarnessScope"}}','```','','Requested capabilities must be a subset of the manifest. `paths` are explicit scope roots and `target` is an owned launch target, not arbitrary process attach.','','## Envelopes','','```json','{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":1,"kind":"event","event":{"source":"collector","kind":"ProcessStarted","correlationId":"pid:1234","data":{"pid":1234}}}','{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":2,"kind":"diagnostic","diagnostic":{"code":"PROCESS_VISIBILITY_LIMITED","message":"Some process metadata was not visible to the current user."}}','{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":3,"kind":"heartbeat"}','{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":4,"kind":"completed"}','```','','Sequence numbers strictly increase. Event envelopes carry only `event`; diagnostic envelopes carry only `diagnostic`; heartbeat/completed carry neither. Every serialized protocol line is at most 262144 bytes and the host queue is bounded to 256 pending envelopes.','','## Stop control','','```json','{"kind":"stop"}','```','','EOF also requests graceful stop.','','## Host error codes','','- `COLLECTOR_INVALID_CONFIG` — malformed host/start configuration.','- `COLLECTOR_START_FAILED` — selected collector could not start or receive its request.','- `COLLECTOR_PROTOCOL_ERROR` — malformed/oversized manifest or envelope, or identity/shape mismatch.','- `COLLECTOR_SEQUENCE_ERROR` — duplicate or non-increasing sequence.','- `COLLECTOR_CAPABILITY_DENIED` — requested capability is absent from the manifest.','- `COLLECTOR_BACKPRESSURE` — the 256-envelope host queue overflowed; the instance fails closed.','- `COLLECTOR_RUNTIME_FAILED` — collector faulted/exited without a valid completed lifecycle.','- `COLLECTOR_NOT_FOUND` — first-party sidecar was not resolved; build with `npm run collector:build` or use the explicit supported override.','','## Platform and safety boundaries','','macOS visibility is limited to metadata available to the current user through supported APIs; Linux visibility depends on `/proc` and the native file watcher backend. HarnessScope reports permission/visibility/watcher-limit failures. It does not escalate privileges, bypass authentication/TLS pinning, scrape process memory, inject code, extract protected source, or disable SIP/Gatekeeper/SELinux/AppArmor/other security controls. First-party file collection is metadata-only; optional hashes never persist file contents.','']
+          write('docs/collector-sdk-v1.md', '\n'.join(doc_lines))
           PY
       - name: Regenerate Node and Rust lock metadata
         shell: bash
