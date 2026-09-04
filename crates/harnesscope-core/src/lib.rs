@@ -5,7 +5,9 @@ pub mod import;
 pub mod infer;
 pub mod lock;
 pub mod model;
+pub mod observe;
 pub mod redact;
+pub mod services;
 pub mod store;
 
 pub use compare::compare_sessions;
@@ -18,5 +20,11 @@ pub use model::{
     CompareResult, Finding, OperationEnvelope, Session, SessionSnapshot, TraceEvent,
     TraceEventInput,
 };
+pub use observe::{LaunchRequest, LaunchResult, WatchRequest, WatchResult, launch_target, watch_files};
 pub use redact::{RedactionResult, redact_value};
+pub use services::{
+    AppInfo, AppServices, ImportResult, InferenceResult, ServiceExportResult, WorkspaceInfo,
+};
 pub use store::Workspace;
+
+pub type WorkspaceLease = WorkspaceLock;
