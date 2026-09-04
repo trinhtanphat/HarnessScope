@@ -1,10 +1,13 @@
-use harnesscope_collector_sdk::{
-    COLLECTOR_SDK_VERSION, CollectorCapability, CollectorStartRequest, CollectorStatus,
-    CollectorTarget,
-};
-use harnesscope_collectors::{first_party_manifests, spawn_first_party};
+use harnesscope_collector_sdk::{COLLECTOR_SDK_VERSION, CollectorCapability};
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use harnesscope_collector_sdk::{CollectorStartRequest, CollectorStatus, CollectorTarget};
+use harnesscope_collectors::first_party_manifests;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use harnesscope_collectors::spawn_first_party;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::{path::PathBuf, time::Duration};
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn fixture_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/collectors/synthetic-target.mjs")
 }
