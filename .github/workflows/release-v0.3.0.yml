@@ -1,0 +1,278 @@
+name: release-v0.3.0
+
+on:
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  package-windows:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: windows-latest
+    env:
+      VERSION: v0.3.0
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+      HARNESSCOPE_RUST_PARITY: "1"
+      NODE_NO_WARNINGS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install pinned Rust toolchain and Windows target
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          rustup target add --toolchain 1.98.1 x86_64-pc-windows-msvc
+      - name: Verify exact triggering SHA and v0.3 versions
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $env:TARGET_SHA) { throw "Checkout SHA $actual does not match triggering SHA $env:TARGET_SHA" }
+          $packageVersion = node -p "require('./package.json').version"
+          if ($packageVersion -ne '0.3.0') { throw "Expected package version 0.3.0, got $packageVersion" }
+          $tauriVersion = node -e "const c=require('./apps/tauri/src-tauri/tauri.conf.json'); process.stdout.write(c.version)"
+          if ($tauriVersion -ne '0.3.0') { throw "Expected Tauri version 0.3.0, got $tauriVersion" }
+      - name: Install locked Node dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify Node Rust parity and Tauri contracts
+        shell: pwsh
+        run: |
+          npm test
+          cargo +1.98.1 fmt --all -- --check
+          cargo +1.98.1 clippy -p harnesscope-core -p harnesscope-parity --all-targets -- -D warnings
+          cargo +1.98.1 test -p harnesscope-core -p harnesscope-parity
+          cargo +1.98.1 clippy -p harnesscope-tauri --all-targets -- -D warnings
+          cargo +1.98.1 check -p harnesscope-tauri
+          node scripts/run-parity.mjs
+      - name: Build unsigned Windows Tauri bundles
+        run: npm run tauri:win
+      - name: Normalize Windows release assets
+        shell: pwsh
+        run: ./scripts/package-windows-portable.ps1
+      - name: Validate Windows release assets
+        shell: pwsh
+        run: |
+          $required = @(
+            'dist/tauri/HarnessScope-0.3.0-windows-x64-Setup.exe',
+            'dist/tauri/HarnessScope-0.3.0-windows-x64.msi',
+            'dist/tauri/HarnessScope-0.3.0-windows-x64-portable.zip'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path)) { throw "Missing required asset: $path" }
+            if ((Get-Item -LiteralPath $path).Length -le 0) { throw "Empty required asset: $path" }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-v0.3.0
+          path: |
+            dist/tauri/HarnessScope-0.3.0-windows-x64-Setup.exe
+            dist/tauri/HarnessScope-0.3.0-windows-x64.msi
+            dist/tauri/HarnessScope-0.3.0-windows-x64-portable.zip
+          if-no-files-found: error
+
+  package-macos:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: macos-latest
+    env:
+      VERSION: v0.3.0
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+      HARNESSCOPE_RUST_PARITY: "1"
+      NODE_NO_WARNINGS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install pinned Rust toolchain and universal macOS targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          rustup target add --toolchain 1.98.1 aarch64-apple-darwin x86_64-apple-darwin
+      - name: Verify exact triggering SHA and v0.3 versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(node -p "require('./package.json').version")" = "0.3.0"
+          test "$(node -e "const c=require('./apps/tauri/src-tauri/tauri.conf.json'); process.stdout.write(c.version)")" = "0.3.0"
+      - name: Install locked Node dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify Node Rust parity and Tauri contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test
+          cargo +1.98.1 fmt --all -- --check
+          cargo +1.98.1 clippy -p harnesscope-core -p harnesscope-parity --all-targets -- -D warnings
+          cargo +1.98.1 test -p harnesscope-core -p harnesscope-parity
+          cargo +1.98.1 clippy -p harnesscope-tauri --all-targets -- -D warnings
+          cargo +1.98.1 check -p harnesscope-tauri
+          node scripts/run-parity.mjs
+      - name: Build unsigned universal macOS Tauri bundles
+        run: npm run tauri:mac
+      - name: Normalize macOS release assets
+        run: bash scripts/package-macos-app.sh
+      - name: Validate macOS release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/tauri/HarnessScope-0.3.0-macos-universal.dmg
+          test -s dist/tauri/HarnessScope-0.3.0-macos-universal.app.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-v0.3.0
+          path: |
+            dist/tauri/HarnessScope-0.3.0-macos-universal.dmg
+            dist/tauri/HarnessScope-0.3.0-macos-universal.app.zip
+          if-no-files-found: error
+
+  release:
+    needs: [package-windows, package-macos]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: v0.3.0
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+      - name: Verify exact triggering SHA and v0.3 versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(node -p "require('./package.json').version")" = "0.3.0"
+          test "$(node -e "const c=require('./apps/tauri/src-tauri/tauri.conf.json'); process.stdout.write(c.version)")" = "0.3.0"
+      - name: Guard existing v0.3.0 tag and release
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+            tag_sha="$(git rev-list -n 1 "$VERSION")"
+            if [ "$tag_sha" != "$TARGET_SHA" ]; then
+              echo "Existing $VERSION points to $tag_sha, expected $TARGET_SHA" >&2
+              exit 1
+            fi
+            gh release view "$VERSION" >/dev/null
+            expected="$(mktemp)"
+            actual="$(mktemp)"
+            printf '%s\n' \
+              HarnessScope-0.3.0-windows-x64-Setup.exe \
+              HarnessScope-0.3.0-windows-x64.msi \
+              HarnessScope-0.3.0-windows-x64-portable.zip \
+              HarnessScope-0.3.0-macos-universal.dmg \
+              HarnessScope-0.3.0-macos-universal.app.zip \
+              HarnessScope-0.3.0-source.zip \
+              SHA256SUMS.txt | sort > "$expected"
+            gh release view "$VERSION" --json assets --jq '.assets[].name' | sort > "$actual"
+            diff -u "$expected" "$actual"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.guard.outputs.exists == 'false'
+        with:
+          name: release-windows-v0.3.0
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        if: steps.guard.outputs.exists == 'false'
+        with:
+          name: release-macos-v0.3.0
+          path: release-assets
+      - name: Build source archive validate exact assets and write checksums
+        if: steps.guard.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          git archive --format=zip --prefix=HarnessScope-0.3.0/ "$TARGET_SHA" \
+            -o release-assets/HarnessScope-0.3.0-source.zip
+
+          required=(
+            HarnessScope-0.3.0-windows-x64-Setup.exe
+            HarnessScope-0.3.0-windows-x64.msi
+            HarnessScope-0.3.0-windows-x64-portable.zip
+            HarnessScope-0.3.0-macos-universal.dmg
+            HarnessScope-0.3.0-macos-universal.app.zip
+            HarnessScope-0.3.0-source.zip
+          )
+          for asset in "${required[@]}"; do
+            test -s "release-assets/$asset"
+          done
+
+          (
+            cd release-assets
+            sha256sum \
+              HarnessScope-0.3.0-windows-x64-Setup.exe \
+              HarnessScope-0.3.0-windows-x64.msi \
+              HarnessScope-0.3.0-windows-x64-portable.zip \
+              HarnessScope-0.3.0-macos-universal.dmg \
+              HarnessScope-0.3.0-macos-universal.app.zip \
+              HarnessScope-0.3.0-source.zip \
+              > SHA256SUMS.txt
+          )
+          test -s release-assets/SHA256SUMS.txt
+      - name: Create v0.3.0 tag and GitHub Release
+        if: steps.guard.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$VERSION" \
+            --target "$TARGET_SHA" \
+            --title "HarnessScope v0.3.0" \
+            --notes "HarnessScope v0.3.0 makes the Rust/Tauri desktop runtime the preferred Windows/macOS path while preserving the Node CLI and Electron fallback. Native packages are intentionally unsigned. This release is rebuilt from the exact successful main SHA and published only after Node, Rust, parity, Windows Tauri, and macOS Tauri gates pass." \
+            release-assets/HarnessScope-0.3.0-windows-x64-Setup.exe \
+            release-assets/HarnessScope-0.3.0-windows-x64.msi \
+            release-assets/HarnessScope-0.3.0-windows-x64-portable.zip \
+            release-assets/HarnessScope-0.3.0-macos-universal.dmg \
+            release-assets/HarnessScope-0.3.0-macos-universal.app.zip \
+            release-assets/HarnessScope-0.3.0-source.zip \
+            release-assets/SHA256SUMS.txt
+      - name: Verify newly created release assets
+        if: steps.guard.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(mktemp)"
+          actual="$(mktemp)"
+          printf '%s\n' \
+            HarnessScope-0.3.0-windows-x64-Setup.exe \
+            HarnessScope-0.3.0-windows-x64.msi \
+            HarnessScope-0.3.0-windows-x64-portable.zip \
+            HarnessScope-0.3.0-macos-universal.dmg \
+            HarnessScope-0.3.0-macos-universal.app.zip \
+            HarnessScope-0.3.0-source.zip \
+            SHA256SUMS.txt | sort > "$expected"
+          git fetch --tags --force
+          test "$(git rev-list -n 1 "$VERSION")" = "$TARGET_SHA"
+          test "$(gh release view "$VERSION" --json isDraft --jq '.isDraft')" = "false"
+          test "$(gh release view "$VERSION" --json isPrerelease --jq '.isPrerelease')" = "false"
+          gh release view "$VERSION" --json assets --jq '.assets[].name' | sort > "$actual"
+          diff -u "$expected" "$actual"

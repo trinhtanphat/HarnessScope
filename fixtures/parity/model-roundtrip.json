@@ -1,0 +1,31 @@
+{
+  "session": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "parity-model",
+    "mode": "desktop",
+    "createdUtc": "2026-09-04T00:00:00.000Z"
+  },
+  "events": [
+    {
+      "id": "event-1",
+      "sessionId": "11111111-1111-4111-8111-111111111111",
+      "timestampUtc": "2026-09-04T00:00:01.000Z",
+      "source": "fixture",
+      "kind": "ToolCall",
+      "correlationId": "tool-1",
+      "data": { "name": "read", "args": { "path": "src/app.js" } },
+      "redaction": "none"
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding-1",
+      "sessionId": "11111111-1111-4111-8111-111111111111",
+      "title": "Observed tool schema: read",
+      "category": "tool_schema",
+      "confidence": 0.95,
+      "statement": "Observed tool read with path argument.",
+      "evidenceEventIds": ["event-1"]
+    }
+  ]
+}

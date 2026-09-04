@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openWorkspace, getSession, listSessions, listEvents, listFindings, replaceFindings } from '../core/store.mjs';
+import { acquireWorkspaceLock } from '../core/workspace-lock.mjs';
 import { inferFindings } from '../core/infer.mjs';
 
 const ROOT = normalize(join(dirname(fileURLToPath(import.meta.url)), '../../ui'));
@@ -24,6 +25,14 @@ function serveStatic(pathname, res) {
 }
 
 export async function startUiServer({ dbPath, port = 4173, host = '127.0.0.1' }) {
+  const lease = acquireWorkspaceLock(dbPath, { runtime: 'node-ui-server' });
+  let released = false;
+  const release = () => {
+    if (released) return false;
+    released = true;
+    return lease.release();
+  };
+
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
@@ -56,10 +65,18 @@ export async function startUiServer({ dbPath, port = 4173, host = '127.0.0.1' })
       send(res, 500, {error:error.message});
     }
   });
-  await new Promise((resolvePromise, reject) => {
-    server.once('error', reject);
-    server.listen(port, host, resolvePromise);
-  });
+
+  server.once('close', release);
+  try {
+    await new Promise((resolvePromise, reject) => {
+      server.once('error', reject);
+      server.listen(port, host, resolvePromise);
+    });
+  } catch (error) {
+    release();
+    throw error;
+  }
+
   const address = server.address();
   return {
     port: typeof address === 'object' && address ? address.port : port,

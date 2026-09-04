@@ -35,8 +35,13 @@ async function request(fetchImpl, path, options) {
   return data;
 }
 
-export function createDataClient({ bridge = globalThis.harnesscope ?? null, fetchImpl = globalThis.fetch?.bind(globalThis) } = {}) {
-  const desktop = !!bridge;
+function detectedBridge() {
+  return globalThis.harnesscopeTauri ?? globalThis.harnesscope ?? null;
+}
+
+export function createDataClient({ bridge = undefined, fetchImpl = globalThis.fetch?.bind(globalThis) } = {}) {
+  const selectedBridge = bridge === undefined ? detectedBridge() : bridge;
+  const desktop = !!selectedBridge;
   const mode = desktop ? 'desktop' : 'browser';
   const invoke = async (fn) => unwrap(await fn());
   const native = (fn) => desktop ? fn : async () => desktopOnly();
@@ -44,27 +49,27 @@ export function createDataClient({ bridge = globalThis.harnesscope ?? null, fetc
   return Object.freeze({
     mode,
     appInfo: desktop
-      ? () => invoke(() => bridge.app.info())
+      ? () => invoke(() => selectedBridge.app.info())
       : async () => ({ name: 'HarnessScope', version: null, platform: 'browser' }),
     listSessions: desktop
-      ? () => invoke(() => bridge.session.list())
+      ? () => invoke(() => selectedBridge.session.list())
       : () => request(fetchImpl, '/api/sessions'),
-    createSession: native((input) => invoke(() => bridge.session.create(input))),
+    createSession: native((input) => invoke(() => selectedBridge.session.create(input))),
     getTimeline: desktop
-      ? (sessionId) => invoke(() => bridge.timeline.get(sessionId))
+      ? (sessionId) => invoke(() => selectedBridge.timeline.get(sessionId))
       : (sessionId) => request(fetchImpl, `/api/session/${encodeURIComponent(sessionId)}`),
     runInference: desktop
-      ? (sessionId) => invoke(() => bridge.inference.run(sessionId))
+      ? (sessionId) => invoke(() => selectedBridge.inference.run(sessionId))
       : (sessionId) => request(fetchImpl, `/api/session/${encodeURIComponent(sessionId)}/infer`, { method: 'POST' }),
-    runCompare: native((sessionA, sessionB) => invoke(() => bridge.compare.run(sessionA, sessionB))),
+    runCompare: native((sessionA, sessionB) => invoke(() => selectedBridge.compare.run(sessionA, sessionB))),
     importEvidence: native((type, sessionId) => {
-      const operation = bridge.import?.[type];
+      const operation = selectedBridge.import?.[type];
       if (!['har', 'procmon', 'jsonl'].includes(type) || typeof operation !== 'function') {
         throw new DataClientError('INVALID_IMPORT_TYPE', 'Choose HAR, Procmon CSV, or JSONL evidence.');
       }
       return invoke(() => operation(sessionId));
     }),
-    launch: native((sessionId, requestValue) => invoke(() => bridge.launch.run(sessionId, requestValue))),
-    exportSession: native((sessionId) => invoke(() => bridge.export.run(sessionId)))
+    launch: native((sessionId, requestValue) => invoke(() => selectedBridge.launch.run(sessionId, requestValue))),
+    exportSession: native((sessionId) => invoke(() => selectedBridge.export.run(sessionId)))
   });
 }

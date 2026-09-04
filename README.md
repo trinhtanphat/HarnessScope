@@ -6,15 +6,17 @@ HarnessScope does **not** extract a vendor's hidden source code. It records evid
 
 ## What it includes
 
+- preferred Rust/Tauri v0.3 desktop runtime for Windows and macOS;
 - Node.js 22 portable CLI and browser UI;
-- SQLite workspace database with WAL mode;
+- Electron desktop fallback retained for migration and regression coverage;
+- Rust `harnesscope-core` with Node/Rust semantic parity fixtures;
+- SQLite workspace database with WAL mode and a shared cross-runtime writer lock;
 - redaction before persistence;
 - HAR 1.2, Procmon CSV and generic JSONL importers;
 - owned-process launch observation and metadata-only file watching;
 - deterministic harness inference and CLI-vs-Desktop comparison;
 - Markdown/JSON/tool-schema clean-room export;
-- Electron v0.2 desktop app for Windows and macOS with a sandboxed renderer, context isolation and strict IPC allowlist;
-- synthetic fixtures and automated tests.
+- synthetic fixtures and automated cross-platform tests.
 
 ## Clean-room / authorization boundary
 
@@ -26,59 +28,86 @@ HAR/Procmon/JSONL are user-supplied evidence. External observability tools may b
 
 ## Requirements
 
-For the portable CLI/core:
+For the portable Node CLI/core:
 
 - Node.js **22+**;
 - Windows, macOS or Linux;
 - Procmon is optional and Windows-only.
 
-The portable CLI uses Node built-ins and does not require `npm install` for normal use. Building or running the Electron desktop app from source does require `npm install`.
+For the preferred Tauri desktop runtime:
 
-## Desktop v0.2.0
+- Rust **1.98.1** from the pinned `rust-toolchain.toml`;
+- Node.js 22 for the pinned Tauri CLI;
+- Windows x64 or macOS universal build hosts for native packages.
 
-HarnessScope v0.2.0 adds native Electron packages while preserving the v0.1 CLI, workspace schema, inference and export behavior.
+The portable Node CLI uses Node built-ins and does not require `npm install` for normal use. Building either desktop runtime from source requires the locked npm dependencies.
+
+## Desktop v0.3.0 — preferred Tauri runtime
+
+HarnessScope v0.3.0 makes the Rust/Tauri desktop shell the preferred Windows/macOS runtime while preserving the v0.2 SQLite/workspace contract, shared renderer action contract, Node CLI, browser UI, and Electron fallback.
+
+The release is fail-closed: `v0.3.0` is published only from the exact successful `main` CI SHA after Node, Rust core, Node/Rust parity, Windows Tauri, and macOS Tauri gates are green.
 
 Release assets:
 
 ```text
 Windows
-├─ HarnessScope-0.2.0-Setup.exe
-└─ HarnessScope-0.2.0-windows-portable.zip
+├─ HarnessScope-0.3.0-windows-x64-Setup.exe
+├─ HarnessScope-0.3.0-windows-x64.msi
+└─ HarnessScope-0.3.0-windows-x64-portable.zip
 
 macOS
-├─ HarnessScope-0.2.0-macos-universal.dmg
-└─ HarnessScope-0.2.0-macos-universal.app.zip
+├─ HarnessScope-0.3.0-macos-universal.dmg
+└─ HarnessScope-0.3.0-macos-universal.app.zip
 
 Source / verification
-├─ HarnessScope-0.2.0-source.zip
+├─ HarnessScope-0.3.0-source.zip
 └─ SHA256SUMS.txt
 ```
 
 ### Unsigned package note
 
-The Windows and macOS packages in v0.2.0 are intentionally **unsigned**.
+The Windows and macOS packages in v0.3.0 are intentionally **unsigned**.
 
-On Windows, Microsoft Defender SmartScreen may warn that the publisher is unknown. Verify the release checksum first, then use the normal SmartScreen **More info → Run anyway** flow only if you trust the downloaded release.
+On Windows, Microsoft Defender SmartScreen may warn that the publisher is unknown. Verify `SHA256SUMS.txt` first, then use the normal SmartScreen **More info → Run anyway** flow only if you trust the exact downloaded release. HarnessScope does not require disabling SmartScreen, Defender, or other platform security controls.
 
-On macOS, Gatekeeper may block the unsigned app on first launch. Verify the release checksum first, then in Finder **Control-click** the HarnessScope app and choose **Open**, followed by **Open** again when macOS asks for confirmation. HarnessScope does not require disabling Gatekeeper or changing system-wide security settings.
+On macOS, Gatekeeper may block the unsigned app on first launch. Verify `SHA256SUMS.txt` first, then in Finder **Control-click** the HarnessScope app and choose **Open**, followed by **Open** again when macOS asks for confirmation. HarnessScope does not require disabling Gatekeeper or changing system-wide security settings.
 
-### Run desktop from source
+### Run the preferred Tauri desktop from source
 
 ```bash
-npm install
+npm ci
+npm run tauri:dev
+```
+
+Native package builds:
+
+```bash
+npm run tauri:win   # Windows x64
+npm run tauri:mac   # macOS universal
+```
+
+The Tauri shell exposes only the explicit HarnessScope command allowlist. Renderer code does not receive unrestricted filesystem, shell, process, SQLite, Electron, or Tauri APIs.
+
+### Electron fallback
+
+The Electron runtime remains supported as a fallback during the v0.3 migration and for regression coverage:
+
+```bash
+npm ci
 npm run desktop
 ```
 
-Build packages locally:
+Fallback package builds:
 
 ```bash
-npm run desktop:win   # Windows
-npm run desktop:mac   # macOS universal
+npm run desktop:win
+npm run desktop:mac
 ```
 
-Electron security defaults in v0.2.0 include `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`, `webSecurity: true`, and `allowRunningInsecureContent: false`. The renderer receives only the versioned `window.harnesscope` bridge; raw `ipcRenderer` is not exposed.
+Electron keeps `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`, `webSecurity: true`, and `allowRunningInsecureContent: false`. The renderer receives only the versioned `window.harnesscope` bridge; raw `ipcRenderer` is not exposed.
 
-## Portable CLI quick start
+## Portable Node CLI quick start
 
 ```bash
 node bin/harnesscope.mjs --help
@@ -129,7 +158,7 @@ node bin/harnesscope.mjs --db ./lab/workspace.sqlite compare <SESSION_A> <SESSIO
 node bin/harnesscope.mjs --db ./lab/workspace.sqlite ui --port 4173
 ```
 
-Open `http://127.0.0.1:4173`. The browser UI keeps the read/infer workflow, while desktop-only actions are disabled when the Electron bridge is absent.
+Open `http://127.0.0.1:4173`. The browser UI keeps the read/infer workflow, while native-only actions are disabled when no desktop bridge is present.
 
 The UI provides session navigation, Trace/Spec tabs, grouped event traces, filtering, event/finding inspectors, confidence/provenance display, and inference for the selected session.
 
@@ -139,26 +168,35 @@ HarnessScope can infer evidence-backed patterns such as progressive skill/instru
 
 It does not invent hidden prompts, token counts or internal implementation details when evidence is absent.
 
-## Tests
+## Tests and parity
 
 ```bash
+npm ci
 npm test
+cargo fmt --all -- --check
+cargo clippy -p harnesscope-core -p harnesscope-parity --all-targets -- -D warnings
+cargo test -p harnesscope-core -p harnesscope-parity
+node scripts/run-parity.mjs
 ```
 
-CI runs the portable test suite on Ubuntu, Windows and macOS. Desktop build gates additionally install the pinned Electron toolchain, rerun tests, build Windows/macOS packages, validate non-empty expected outputs, and upload build artifacts.
+CI runs Node tests on Ubuntu, Windows and macOS, Rust core/parity checks on all three platforms, explicit semantic parity, and native Tauri package gates on Windows and macOS. Native jobs validate non-empty normalized v0.3 artifacts before upload.
 
 ## Repository layout
 
 ```text
-apps/desktop/          Electron main/preload/IPC/service layer
-bin/                   CLI entrypoint
-src/core/              redaction, store, inference, compare, exporter
-src/importers/         HAR, Procmon CSV, JSONL
+apps/desktop/          Electron fallback main/preload/IPC/service layer
+apps/tauri/            preferred Tauri shell and native configuration
+bin/                   Node CLI entrypoint
+crates/harnesscope-core/   framework-independent Rust core
+crates/harnesscope-parity/ Node/Rust parity transport
+src/core/              Node redaction, store, inference, compare, exporter
+src/importers/         Node HAR, Procmon CSV, JSONL importers
 src/observe/           owned-process launch + metadata file watcher
 src/ui/                local HTTP/API server
-ui/                    shared browser/Electron renderer
-fixtures/              synthetic evidence and dummy agent
-test/                  Node test suite
+ui/                    shared browser/Electron/Tauri renderer
+fixtures/              synthetic evidence, parity and compatibility fixtures
+scripts/               parity and native packaging helpers
+test/                  Node contract/regression suite
 docs/                  design, plans and observation tutorial
 ```
 

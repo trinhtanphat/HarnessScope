@@ -4,8 +4,12 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
+  node-test:
+    name: node-test (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -16,33 +20,97 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm test
+          cache: npm
+      - name: Install locked Node dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Node tests
+        run: npm test
         env:
           NODE_NO_WARNINGS: "1"
 
-  desktop-windows:
-    name: desktop-windows
-    needs: test
+  rust-core:
+    name: rust-core (${{ matrix.os }})
+    needs: node-test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Rust format
+        run: cargo +1.98.1 fmt --all -- --check
+      - name: Rust core/parity clippy
+        run: cargo +1.98.1 clippy -p harnesscope-core -p harnesscope-parity --all-targets -- -D warnings
+      - name: Rust core/parity tests
+        run: cargo +1.98.1 test -p harnesscope-core -p harnesscope-parity
+      - name: Tauri shell clippy on native desktop runners
+        if: runner.os != 'Linux'
+        run: cargo +1.98.1 clippy -p harnesscope-tauri --all-targets -- -D warnings
+      - name: Tauri shell check on native desktop runners
+        if: runner.os != 'Linux'
+        run: cargo +1.98.1 check -p harnesscope-tauri
+
+  parity:
+    name: parity
+    needs: [node-test, rust-core]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked Node dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal
+      - name: Node/Rust semantic parity
+        run: node scripts/run-parity.mjs
+        env:
+          HARNESSCOPE_RUST_PARITY: "1"
+          NODE_NO_WARNINGS: "1"
+
+  tauri-windows:
+    name: tauri-windows
+    needs: [node-test, rust-core, parity]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install desktop dependencies
-        run: npm install --no-audit --no-fund
-      - name: Test before packaging
-        run: npm test
+          cache: npm
+      - name: Install pinned Rust toolchain and Windows target
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup target add --toolchain 1.98.1 x86_64-pc-windows-msvc
+      - name: Install locked desktop dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify before native packaging
+        run: |
+          npm test
+          cargo +1.98.1 check -p harnesscope-tauri
         env:
           NODE_NO_WARNINGS: "1"
-      - name: Build Windows desktop packages
-        run: npm run desktop:win
+      - name: Build unsigned Windows Tauri bundles
+        run: npm run tauri:win
+      - name: Normalize Windows installer and portable package
+        shell: pwsh
+        run: ./scripts/package-windows-portable.ps1
       - name: Validate Windows artifacts
         shell: pwsh
         run: |
           $required = @(
-            'dist/desktop/HarnessScope-0.2.0-Setup.exe',
-            'dist/desktop/HarnessScope-0.2.0-windows-portable.zip'
+            'dist/tauri/HarnessScope-0.3.0-windows-x64-Setup.exe',
+            'dist/tauri/HarnessScope-0.3.0-windows-x64.msi',
+            'dist/tauri/HarnessScope-0.3.0-windows-x64-portable.zip'
           )
           foreach ($path in $required) {
             if (-not (Test-Path -LiteralPath $path)) { throw "Missing required artifact: $path" }
@@ -50,39 +118,47 @@ jobs:
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: HarnessScope-0.2.0-windows
+          name: HarnessScope-0.3.0-windows-x64
           path: |
-            dist/desktop/HarnessScope-0.2.0-Setup.exe
-            dist/desktop/HarnessScope-0.2.0-windows-portable.zip
+            dist/tauri/HarnessScope-0.3.0-windows-x64-Setup.exe
+            dist/tauri/HarnessScope-0.3.0-windows-x64.msi
+            dist/tauri/HarnessScope-0.3.0-windows-x64-portable.zip
           if-no-files-found: error
 
-  desktop-macos:
-    name: desktop-macos
-    needs: test
+  tauri-macos:
+    name: tauri-macos
+    needs: [node-test, rust-core, parity]
     runs-on: macos-latest
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install desktop dependencies
-        run: npm install --no-audit --no-fund
-      - name: Test before packaging
-        run: npm test
+          cache: npm
+      - name: Install pinned Rust toolchain and universal targets
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup target add --toolchain 1.98.1 aarch64-apple-darwin x86_64-apple-darwin
+      - name: Install locked desktop dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify before native packaging
+        run: |
+          npm test
+          cargo +1.98.1 check -p harnesscope-tauri
         env:
           NODE_NO_WARNINGS: "1"
-      - name: Build unsigned universal macOS desktop packages
-        run: npm run desktop:mac
+      - name: Build unsigned universal macOS Tauri bundles
+        run: npm run tauri:mac
+      - name: Normalize macOS DMG and app archive
+        run: bash scripts/package-macos-app.sh
       - name: Validate macOS artifacts
         run: |
-          test -s dist/desktop/HarnessScope-0.2.0-macos-universal.dmg
-          test -s dist/desktop/HarnessScope-0.2.0-macos-universal.zip
+          test -s dist/tauri/HarnessScope-0.3.0-macos-universal.dmg
+          test -s dist/tauri/HarnessScope-0.3.0-macos-universal.app.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: HarnessScope-0.2.0-macos
+          name: HarnessScope-0.3.0-macos-universal
           path: |
-            dist/desktop/HarnessScope-0.2.0-macos-universal.dmg
-            dist/desktop/HarnessScope-0.2.0-macos-universal.zip
+            dist/tauri/HarnessScope-0.3.0-macos-universal.dmg
+            dist/tauri/HarnessScope-0.3.0-macos-universal.app.zip
           if-no-files-found: error
