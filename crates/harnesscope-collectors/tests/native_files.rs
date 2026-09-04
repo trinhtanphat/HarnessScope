@@ -6,12 +6,15 @@ use harnesscope_collector_sdk::{
 };
 use harnesscope_collectors::spawn_first_party;
 use serde_json::Value;
-use std::{fs, path::PathBuf, time::{Duration, Instant}};
+use std::{
+    fs,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 use tempfile::tempdir;
 
 fn fixture_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures/collectors/synthetic-target.mjs")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/collectors/synthetic-target.mjs")
 }
 
 fn collector_id() -> &'static str {
@@ -68,18 +71,38 @@ fn observes_only_selected_directory_file_metadata() {
     }
 
     assert!(completed, "collector did not complete");
-    let file_events = events.iter().filter(|event| {
-        event.get("kind").and_then(Value::as_str).is_some_and(|kind| kind.starts_with("File"))
-    }).collect::<Vec<_>>();
-    assert!(!file_events.is_empty(), "missing file metadata evidence: {events:?}");
+    let file_events = events
+        .iter()
+        .filter(|event| {
+            event
+                .get("kind")
+                .and_then(Value::as_str)
+                .is_some_and(|kind| kind.starts_with("File"))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !file_events.is_empty(),
+        "missing file metadata evidence: {events:?}"
+    );
 
     let selected_text = selected.to_string_lossy();
     let sibling_text = sibling.to_string_lossy();
     assert!(file_events.iter().any(|event| {
-        event["data"]["path"].as_str().is_some_and(|path| path.starts_with(selected_text.as_ref()))
+        event["data"]["path"]
+            .as_str()
+            .is_some_and(|path| path.starts_with(selected_text.as_ref()))
     }));
-    assert!(file_events.iter().all(|event| {
-        event["data"]["path"].as_str().is_none_or(|path| !path.starts_with(sibling_text.as_ref()))
-    }), "out-of-scope sibling file event persisted: {file_events:?}");
-    assert!(file_events.iter().all(|event| event["data"]["contentCaptured"] == false));
+    assert!(
+        file_events.iter().all(|event| {
+            event["data"]["path"]
+                .as_str()
+                .is_none_or(|path| !path.starts_with(sibling_text.as_ref()))
+        }),
+        "out-of-scope sibling file event persisted: {file_events:?}"
+    );
+    assert!(
+        file_events
+            .iter()
+            .all(|event| event["data"]["contentCaptured"] == false)
+    );
 }
