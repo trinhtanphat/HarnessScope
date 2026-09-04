@@ -1,4 +1,7 @@
-use crate::{errors, state::{CollectorInstance, DesktopState}};
+use crate::{
+    errors,
+    state::{CollectorInstance, DesktopState},
+};
 use harnesscope_collector_sdk::{
     COLLECTOR_SDK_VERSION, CollectorEnvelopeKind, CollectorManifest, CollectorStartRequest,
     CollectorStatus, CollectorTarget,
@@ -6,7 +9,8 @@ use harnesscope_collector_sdk::{
 use harnesscope_collectors::{first_party_manifests, spawn_first_party};
 use harnesscope_core::{
     AppInfo, CompareResult, ImportResult, InferenceResult, LaunchRequest, LaunchResult,
-    OperationEnvelope, ServiceExportResult, Session, SessionSnapshot, TraceEventInput, WorkspaceInfo,
+    OperationEnvelope, ServiceExportResult, Session, SessionSnapshot, TraceEventInput,
+    WorkspaceInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -271,66 +275,69 @@ pub fn collector_start(
     let drain_instance_id = instance_id.clone();
     let drain_collector_id = collector_id.clone();
     let drain_session_id = session_id.clone();
-    thread::spawn(move || loop {
-        match drain_handle.recv_timeout(Duration::from_millis(250)) {
-            Ok(envelope) => match envelope.kind {
-                CollectorEnvelopeKind::Event => {
-                    if let Some(value) = envelope.event {
-                        match serde_json::from_value::<TraceEventInput>(value) {
-                            Ok(input) => {
-                                if let Ok(services) = services.lock() {
-                                    let _ = services.collector_append_event(&drain_session_id, input);
+    thread::spawn(move || {
+        loop {
+            match drain_handle.recv_timeout(Duration::from_millis(250)) {
+                Ok(envelope) => match envelope.kind {
+                    CollectorEnvelopeKind::Event => {
+                        if let Some(value) = envelope.event {
+                            match serde_json::from_value::<TraceEventInput>(value) {
+                                Ok(input) => {
+                                    if let Ok(services) = services.lock() {
+                                        let _ = services
+                                            .collector_append_event(&drain_session_id, input);
+                                    }
                                 }
-                            }
-                            Err(_) => {
-                                if let Ok(mut values) = diagnostics.lock() {
-                                    values.push(harnesscope_collector_sdk::CollectorDiagnostic {
-                                        code: "COLLECTOR_PROTOCOL_ERROR".into(),
-                                        message: "Collector event did not match the trace-event contract.".into(),
-                                        data: None,
-                                    });
+                                Err(_) => {
+                                    if let Ok(mut values) = diagnostics.lock() {
+                                        values.push(harnesscope_collector_sdk::CollectorDiagnostic {
+                                            code: "COLLECTOR_PROTOCOL_ERROR".into(),
+                                            message: "Collector event did not match the trace-event contract.".into(),
+                                            data: None,
+                                        });
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                CollectorEnvelopeKind::Diagnostic => {
-                    if let Some(diagnostic) = envelope.diagnostic {
-                        if let Ok(mut values) = diagnostics.lock() {
-                            values.push(diagnostic.clone());
-                        }
-                        let input = TraceEventInput {
-                            id: None,
-                            timestamp_utc: None,
-                            source: "collector-diagnostic".into(),
-                            kind: "Unknown".into(),
-                            correlation_id: Some(drain_instance_id.clone()),
-                            data: json!({
-                                "collectorId": drain_collector_id.clone(),
-                                "instanceId": drain_instance_id.clone(),
-                                "code": diagnostic.code,
-                                "message": diagnostic.message,
-                                "data": diagnostic.data,
-                            }),
-                            redaction: None,
-                        };
-                        if let Ok(services) = services.lock() {
-                            let _ = services.collector_append_event(&drain_session_id, input);
+                    CollectorEnvelopeKind::Diagnostic => {
+                        if let Some(diagnostic) = envelope.diagnostic {
+                            if let Ok(mut values) = diagnostics.lock() {
+                                values.push(diagnostic.clone());
+                            }
+                            let input = TraceEventInput {
+                                id: None,
+                                timestamp_utc: None,
+                                source: "collector-diagnostic".into(),
+                                kind: "Unknown".into(),
+                                correlation_id: Some(drain_instance_id.clone()),
+                                data: json!({
+                                    "collectorId": drain_collector_id.clone(),
+                                    "instanceId": drain_instance_id.clone(),
+                                    "code": diagnostic.code,
+                                    "message": diagnostic.message,
+                                    "data": diagnostic.data,
+                                }),
+                                redaction: None,
+                            };
+                            if let Ok(services) = services.lock() {
+                                let _ = services.collector_append_event(&drain_session_id, input);
+                            }
                         }
                     }
+                    CollectorEnvelopeKind::Heartbeat => {}
+                    CollectorEnvelopeKind::Completed => break,
+                },
+                Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
+                    if matches!(
+                        drain_handle.status(),
+                        CollectorStatus::Stopped | CollectorStatus::Failed
+                    ) {
+                        break;
+                    }
                 }
-                CollectorEnvelopeKind::Heartbeat => {}
-                CollectorEnvelopeKind::Completed => break,
-            },
-            Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                if matches!(
-                    drain_handle.status(),
-                    CollectorStatus::Stopped | CollectorStatus::Failed
-                ) {
-                    break;
-                }
+                Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
             }
-            Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
         }
     });
 
@@ -344,11 +351,18 @@ pub fn collector_stop(
 ) -> OperationEnvelope<CollectorInstanceStatus> {
     let instance = match state.collector(&instance_id) {
         Ok(Some(instance)) => instance,
-        Ok(None) => return collector_failure("COLLECTOR_NOT_FOUND", "Collector instance was not found."),
-        Err(()) => return collector_failure("COLLECTOR_STATE_FAILED", "Collector state is unavailable."),
+        Ok(None) => {
+            return collector_failure("COLLECTOR_NOT_FOUND", "Collector instance was not found.");
+        }
+        Err(()) => {
+            return collector_failure("COLLECTOR_STATE_FAILED", "Collector state is unavailable.");
+        }
     };
     if instance.handle.stop(Duration::from_secs(2)).is_err() {
-        return collector_failure("COLLECTOR_STOP_TIMEOUT", "Collector did not stop within the allowed interval.");
+        return collector_failure(
+            "COLLECTOR_STOP_TIMEOUT",
+            "Collector did not stop within the allowed interval.",
+        );
     }
     OperationEnvelope::success(collector_snapshot(&instance_id, &instance))
 }
@@ -359,7 +373,9 @@ pub fn collector_status(
     instance_id: String,
 ) -> OperationEnvelope<CollectorInstanceStatus> {
     match state.collector(&instance_id) {
-        Ok(Some(instance)) => OperationEnvelope::success(collector_snapshot(&instance_id, &instance)),
+        Ok(Some(instance)) => {
+            OperationEnvelope::success(collector_snapshot(&instance_id, &instance))
+        }
         Ok(None) => collector_failure("COLLECTOR_NOT_FOUND", "Collector instance was not found."),
         Err(()) => collector_failure("COLLECTOR_STATE_FAILED", "Collector state is unavailable."),
     }
