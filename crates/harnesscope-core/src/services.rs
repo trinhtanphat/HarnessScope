@@ -159,7 +159,11 @@ impl AppServices {
         })
     }
 
-    pub fn compare_run(&self, session_a: &str, session_b: &str) -> Result<CompareResult, CoreError> {
+    pub fn compare_run(
+        &self,
+        session_a: &str,
+        session_b: &str,
+    ) -> Result<CompareResult, CoreError> {
         let a = self.timeline_get(session_a)?;
         let b = self.timeline_get(session_b)?;
         Ok(compare_sessions(&a, &b))
@@ -175,11 +179,7 @@ impl AppServices {
         Ok(import_result(stored))
     }
 
-    pub fn import_procmon(
-        &self,
-        session_id: &str,
-        path: &Path,
-    ) -> Result<ImportResult, CoreError> {
+    pub fn import_procmon(&self, session_id: &str, path: &Path) -> Result<ImportResult, CoreError> {
         let date = today_utc()?;
         self.import_procmon_on_date(session_id, path, &date)
     }

@@ -20,7 +20,9 @@ pub use model::{
     CompareResult, Finding, OperationEnvelope, Session, SessionSnapshot, TraceEvent,
     TraceEventInput,
 };
-pub use observe::{LaunchRequest, LaunchResult, WatchRequest, WatchResult, launch_target, watch_files};
+pub use observe::{
+    LaunchRequest, LaunchResult, WatchRequest, WatchResult, launch_target, watch_files,
+};
 pub use redact::{RedactionResult, redact_value};
 pub use services::{
     AppInfo, AppServices, ImportResult, InferenceResult, ServiceExportResult, WorkspaceInfo,

@@ -9,8 +9,7 @@ use std::{
 };
 
 const STRUCTURED_PREFIX: &str = "HARNESSCOPE_EVENT ";
-const MALFORMED_DIAGNOSTIC: &str =
-    "Malformed HARNESSCOPE_EVENT marker omitted from persistence.";
+const MALFORMED_DIAGNOSTIC: &str = "Malformed HARNESSCOPE_EVENT marker omitted from persistence.";
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
