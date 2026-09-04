@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 
@@ -17,6 +17,7 @@ test('v0.3 CI separates portable Node, cross-platform Rust, parity, and native T
 
   const node = job('node-test');
   assert.match(node, /matrix:[\s\S]*os:\s*\[ubuntu-latest, windows-latest, macos-latest\]/);
+  assert.match(node, /npm ci/);
   assert.match(node, /npm test/);
 
   const rust = job('rust-core');
@@ -28,30 +29,51 @@ test('v0.3 CI separates portable Node, cross-platform Rust, parity, and native T
 
   const parity = job('parity');
   assert.match(parity, /node scripts\/run-parity\.mjs/);
+  const parityScript = readFileSync(new URL('../scripts/run-parity.mjs', import.meta.url), 'utf8');
   for (const capability of ['model-roundtrip', 'redaction', 'store', 'inference', 'compare', 'imports', 'export']) {
-    assert.match(readFileSync(new URL('../scripts/run-parity.mjs', import.meta.url), 'utf8'), new RegExp(capability));
+    assert.match(parityScript, new RegExp(capability));
   }
 });
 
-test('native Tauri jobs depend on portable/Rust/parity gates and publish normalized v0.3 artifacts', () => {
+test('native Tauri jobs install exact targets, use npm ci, and package normalized v0.3 artifacts', () => {
   const windows = job('tauri-windows');
   assert.match(windows, /needs:\s*\[node-test, rust-core, parity\]/);
   assert.match(windows, /runs-on:\s*windows-latest/);
+  assert.match(windows, /rustup target add --toolchain 1\.98\.1 x86_64-pc-windows-msvc/);
+  assert.match(windows, /npm ci/);
   assert.match(windows, /npm run tauri:win/);
-  assert.match(windows, /HarnessScope-0\.3\.0-windows-x64-Setup\.exe/);
-  assert.match(windows, /HarnessScope-0\.3\.0-windows-x64\.msi/);
-  assert.match(windows, /HarnessScope-0\.3\.0-windows-x64-portable\.zip/);
+  assert.match(windows, /scripts\/package-windows-portable\.ps1/);
+  assert.match(windows, /dist\/tauri\/HarnessScope-0\.3\.0-windows-x64-Setup\.exe/);
+  assert.match(windows, /dist\/tauri\/HarnessScope-0\.3\.0-windows-x64\.msi/);
+  assert.match(windows, /dist\/tauri\/HarnessScope-0\.3\.0-windows-x64-portable\.zip/);
   assert.match(windows, /name:\s*HarnessScope-0\.3\.0-windows-x64/);
 
   const mac = job('tauri-macos');
   assert.match(mac, /needs:\s*\[node-test, rust-core, parity\]/);
   assert.match(mac, /runs-on:\s*macos-latest/);
-  assert.match(mac, /x86_64-apple-darwin/);
-  assert.match(mac, /aarch64-apple-darwin/);
+  assert.match(mac, /rustup target add --toolchain 1\.98\.1 aarch64-apple-darwin x86_64-apple-darwin/);
+  assert.match(mac, /npm ci/);
   assert.match(mac, /npm run tauri:mac/);
-  assert.match(mac, /HarnessScope-0\.3\.0-macos-universal\.dmg/);
-  assert.match(mac, /HarnessScope-0\.3\.0-macos-universal\.app\.zip/);
+  assert.match(mac, /scripts\/package-macos-app\.sh/);
+  assert.match(mac, /dist\/tauri\/HarnessScope-0\.3\.0-macos-universal\.dmg/);
+  assert.match(mac, /dist\/tauri\/HarnessScope-0\.3\.0-macos-universal\.app\.zip/);
   assert.match(mac, /name:\s*HarnessScope-0\.3\.0-macos-universal/);
+});
+
+test('portable package helpers include unsigned guidance and deterministic app archiving', () => {
+  const windowsUrl = new URL('../scripts/package-windows-portable.ps1', import.meta.url);
+  const macUrl = new URL('../scripts/package-macos-app.sh', import.meta.url);
+  assert.ok(existsSync(windowsUrl), 'missing Windows portable package helper');
+  assert.ok(existsSync(macUrl), 'missing macOS app package helper');
+
+  const windows = readFileSync(windowsUrl, 'utf8');
+  assert.match(windows, /README-UNSIGNED\.txt/);
+  assert.match(windows, /Compress-Archive/);
+  assert.match(windows, /HarnessScope-0\.3\.0-windows-x64-portable\.zip/);
+
+  const mac = readFileSync(macUrl, 'utf8');
+  assert.match(mac, /ditto -c -k --sequesterRsrc --keepParent/);
+  assert.match(mac, /HarnessScope-0\.3\.0-macos-universal\.app\.zip/);
 });
 
 test('CI remains a push/pull-request verification workflow and never publishes a release', () => {
