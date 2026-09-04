@@ -1,0 +1,24 @@
+{
+  "a": {
+    "session": {"id":"a","name":"cli","mode":"cli","createdUtc":"2026-09-04T00:00:00.000Z"},
+    "events": [
+      {"id":"a1","sessionId":"a","timestampUtc":"2026-09-04T00:00:01.000Z","source":"fixture","kind":"ToolCall","correlationId":null,"data":{"name":"read"},"redaction":"none"},
+      {"id":"a2","sessionId":"a","timestampUtc":"2026-09-04T00:00:02.000Z","source":"fixture","kind":"PermissionPrompt","correlationId":null,"data":{},"redaction":"none"},
+      {"id":"a3","sessionId":"a","timestampUtc":"2026-09-04T00:00:03.000Z","source":"fixture","kind":"PermissionDecision","correlationId":null,"data":{},"redaction":"none"}
+    ],
+    "findings": [
+      {"id":null,"sessionId":null,"title":"Permission gate","category":"permission_gate","confidence":0.97,"statement":"fixture","evidenceEventIds":[]}
+    ]
+  },
+  "b": {
+    "session": {"id":"b","name":"desktop","mode":"desktop","createdUtc":"2026-09-04T00:00:00.000Z"},
+    "events": [
+      {"id":"b1","sessionId":"b","timestampUtc":"2026-09-04T00:00:01.000Z","source":"fixture","kind":"ToolCall","correlationId":null,"data":{"name":"read"},"redaction":"none"},
+      {"id":"b2","sessionId":"b","timestampUtc":"2026-09-04T00:00:02.000Z","source":"fixture","kind":"ResumeMarker","correlationId":null,"data":{},"redaction":"none"},
+      {"id":"b3","sessionId":"b","timestampUtc":"2026-09-04T00:00:03.000Z","source":"fixture","kind":"SkillRead","correlationId":null,"data":{"path":"skills/ui.md"},"redaction":"none"}
+    ],
+    "findings": [
+      {"id":null,"sessionId":null,"title":"Session persistence","category":"session_persistence","confidence":0.94,"statement":"fixture","evidenceEventIds":[]}
+    ]
+  }
+}

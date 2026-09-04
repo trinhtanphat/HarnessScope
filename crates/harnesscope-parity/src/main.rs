@@ -1,6 +1,13 @@
-use harnesscope_core::{SessionSnapshot, redact_value};
+use harnesscope_core::{SessionSnapshot, TraceEvent, compare_sessions, infer_findings, redact_value};
+use serde::Deserialize;
 use serde_json::Value;
 use std::{env, fs, process::ExitCode};
+
+#[derive(Deserialize)]
+struct CompareFixture {
+    a: SessionSnapshot,
+    b: SessionSnapshot,
+}
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = env::args().skip(1);
@@ -29,6 +36,21 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 })
                 .collect::<Vec<_>>();
             println!("{}", serde_json::to_string(&output)?);
+            Ok(())
+        }
+        "inference" => {
+            let text = fs::read_to_string(fixture)?;
+            let events: Vec<TraceEvent> = serde_json::from_str(&text)?;
+            println!("{}", serde_json::to_string(&infer_findings(&events))?);
+            Ok(())
+        }
+        "compare" => {
+            let text = fs::read_to_string(fixture)?;
+            let fixture: CompareFixture = serde_json::from_str(&text)?;
+            println!(
+                "{}",
+                serde_json::to_string(&compare_sessions(&fixture.a, &fixture.b))?
+            );
             Ok(())
         }
         _ => Err(format!("unsupported parity case: {case}").into()),

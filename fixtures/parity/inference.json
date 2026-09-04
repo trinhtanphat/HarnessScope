@@ -1,0 +1,17 @@
+[
+  {"id":"01","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:01.000Z","source":"fixture","kind":"SkillRead","correlationId":null,"data":{"path":"skills/frontend.md"},"redaction":"none"},
+  {"id":"02","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:02.000Z","source":"fixture","kind":"InstructionRead","correlationId":null,"data":{"path":"skills/software-engineering.md"},"redaction":"none"},
+  {"id":"03","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:03.000Z","source":"fixture","kind":"PermissionPrompt","correlationId":"perm-1","data":{"action":"shell"},"redaction":"none"},
+  {"id":"04","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:04.000Z","source":"fixture","kind":"PermissionDecision","correlationId":"perm-1","data":{"decision":"allow"},"redaction":"none"},
+  {"id":"05","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:05.000Z","source":"fixture","kind":"ToolCall","correlationId":"tool-1","data":{"name":"read","args":{"path":"src/app.js"}},"redaction":"none"},
+  {"id":"06","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:06.000Z","source":"fixture","kind":"ToolResult","correlationId":"tool-1","data":{"name":"read","ok":true},"redaction":"none"},
+  {"id":"07","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:07.000Z","source":"fixture","kind":"FileWritten","correlationId":null,"data":{"path":"src/app.js"},"redaction":"none"},
+  {"id":"08","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:08.000Z","source":"fixture","kind":"ToolCall","correlationId":"tool-2","data":{"name":"shell","args":{"command":"npm test"}},"redaction":"none"},
+  {"id":"09","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:09.000Z","source":"fixture","kind":"ToolResult","correlationId":"tool-2","data":{"name":"shell","ok":true},"redaction":"none"},
+  {"id":"10","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:10.000Z","source":"fixture","kind":"CompactionMarker","correlationId":null,"data":{"reason":"context_pressure"},"redaction":"none"},
+  {"id":"11","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:11.000Z","source":"fixture","kind":"FileWritten","correlationId":null,"data":{"path":"state/session.json"},"redaction":"none"},
+  {"id":"12","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:12.000Z","source":"fixture","kind":"ProcessExited","correlationId":null,"data":{"pid":10},"redaction":"none"},
+  {"id":"13","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:13.000Z","source":"fixture","kind":"ProcessStarted","correlationId":null,"data":{"pid":11},"redaction":"none"},
+  {"id":"14","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:14.000Z","source":"fixture","kind":"FileRead","correlationId":null,"data":{"path":"state/session.json"},"redaction":"none"},
+  {"id":"15","sessionId":"fixture-session","timestampUtc":"2026-09-04T00:00:15.000Z","source":"fixture","kind":"ResumeMarker","correlationId":null,"data":{"session":"abc"},"redaction":"none"}
+]

@@ -37,8 +37,8 @@ jobs:
         run: cargo +1.98.1 clippy --workspace --all-targets -- -D warnings
       - name: Rust tests
         run: cargo +1.98.1 test --workspace
-      - name: Node/Rust redaction parity
-        run: node --test test/v03-parity-redaction.test.mjs
+      - name: Node/Rust semantic parity
+        run: node --test test/v03-parity-redaction.test.mjs test/v03-parity-inference.test.mjs test/v03-parity-compare.test.mjs
         env:
           HARNESSCOPE_RUST_PARITY: "1"
 
