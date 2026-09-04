@@ -3,7 +3,7 @@ use harnesscope_collector_sdk::{
     CollectorProtocolError, COLLECTOR_SDK_VERSION, MAX_ENVELOPE_BYTES, validate_envelope,
     validate_manifest,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 
 fn fixture_manifest() -> CollectorManifest {
     CollectorManifest {
@@ -45,6 +45,23 @@ fn fixture_envelope(sequence: u64) -> CollectorEnvelope {
 fn exposes_exact_v1_constants() {
     assert_eq!(COLLECTOR_SDK_VERSION, "1");
     assert_eq!(MAX_ENVELOPE_BYTES, 262_144);
+}
+
+#[test]
+fn shared_json_fixture_round_trips_through_rust_contract() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../../fixtures/collectors/protocol-v1.json"
+    ))
+    .unwrap();
+    let manifest: CollectorManifest =
+        serde_json::from_value(fixture.get("manifest").unwrap().clone()).unwrap();
+    let envelope: CollectorEnvelope =
+        serde_json::from_value(fixture.get("envelope").unwrap().clone()).unwrap();
+
+    validate_manifest(&manifest).unwrap();
+    validate_envelope(None, &envelope).unwrap();
+    assert_eq!(serde_json::to_value(manifest).unwrap(), fixture["manifest"]);
+    assert_eq!(serde_json::to_value(envelope).unwrap(), fixture["envelope"]);
 }
 
 #[test]
