@@ -6,33 +6,27 @@ Direction approved by user on 2026-09-04. This written specification is pending 
 
 ## Goal
 
-Ship HarnessScope `v0.4.0` with a stable, capability-bounded Collector SDK and first-party native process/file collectors for macOS and Linux, while preserving the released v0.3 clean-room, redaction, SQLite, Node/Rust parity, Tauri, CLI, and release contracts.
+Ship HarnessScope `v0.4.0` with a stable, capability-bounded Collector SDK and first-party native process/file collectors for macOS and Linux, while preserving the released v0.3 clean-room, redaction, SQLite, Node/Rust parity, Tauri, CLI, Electron-fallback, and fail-closed release contracts.
 
-V0.4 makes collection extensible without turning collectors into privileged plugins with unrestricted application access. Every collector must emit the same canonical evidence model, declare its capabilities, obey authorization boundaries, and pass redaction before persistence.
+V0.4 separates evidence acquisition from normalization/persistence. Collectors emit a versioned process protocol; runtime hosts validate that protocol and route canonical events through the existing redaction and persistence boundary.
 
 ## Why V0.4
 
-V0.3 established the Rust core, Tauri desktop runtime, cross-runtime writer lock, parity, and fail-closed native release pipeline. The next highest-leverage step is to separate evidence acquisition from normalization/persistence so new collectors can be added without modifying the core or renderer for every source.
+V0.3 established the Rust core, Tauri desktop runtime, cross-runtime workspace lock, semantic parity, and native Windows/macOS release pipeline. The original V1 design deferred macOS/Linux native process collectors and a custom Collector SDK. V0.4 implements those two items only.
 
-The original V1 design explicitly deferred:
-
-- macOS/Linux native process collectors beyond portable fallback;
-- a plugin SDK for custom evidence collectors;
-- ETW high-volume collection;
-- automated harness reimplementation/code generation.
-
-V0.4 implements the first two only. ETW and harness generation remain deferred.
+Windows ETW, Linux desktop packages, signing/notarization, and harness generation remain deferred.
 
 ## Version and compatibility contract
 
 - Product version becomes exactly `0.4.0`.
 - Release tag is exactly `v0.4.0`.
 - V0.3 workspaces remain readable and writable without destructive migration.
+- V0.4 introduces no required SQLite schema migration; collector lifecycle/status is represented as canonical trace events and diagnostics.
 - Existing Node CLI commands remain supported.
-- Existing Tauri and Electron action families remain compatible unless explicitly extended by additive collector actions.
-- Existing event kinds, finding semantics, redaction-before-persistence rule, and clean-room exporter remain the compatibility reference.
-- Existing v0.3 release artifacts remain immutable historical releases.
-- V0.4 packages remain unsigned unless a separate signing design is approved.
+- Existing Tauri and Electron action families remain compatible; collector actions are additive.
+- Existing event kinds, finding semantics, redaction-before-persistence rule, workspace lock, and clean-room exporter remain compatibility references.
+- Existing v0.3 releases remain immutable.
+- V0.4 Windows/macOS packages remain intentionally unsigned unless a separate signing design is approved.
 
 ## Non-goals
 
@@ -40,165 +34,189 @@ V0.4 does not:
 
 - add Windows ETW high-volume collection;
 - inject code into another process;
+- use ptrace for memory inspection;
 - scrape process memory;
 - bypass authentication, access control, TLS pinning, sandboxing, SIP, Gatekeeper, SELinux, AppArmor, or other security controls;
 - silently elevate privileges;
 - capture secrets or credential stores;
 - decompile or extract protected vendor source;
-- add arbitrary in-process third-party native code loading to the desktop app;
+- load arbitrary third-party dynamic libraries into HarnessScope;
+- automatically discover or execute collector binaries from arbitrary directories;
 - generate a replacement agent harness from findings.
 
-## Architectural principles
+## Chosen architecture
 
-### 1. Collectors are producers, not storage owners
+V0.4 uses an **out-of-process JSONL Collector Protocol** as the shared compatibility surface.
 
-Collectors never write SQLite directly. They produce canonical `TraceEventInput` records and structured diagnostics. The existing core owns redaction, IDs/timestamps when needed, persistence, findings, and export.
+First-party macOS/Linux native collection is implemented as a Rust collector executable that speaks the same protocol as future custom collectors. Node CLI, Tauri, and Electron host the same protocol rather than sharing an in-process native plugin ABI.
 
-### 2. Capability declaration is mandatory
-
-Every collector declares what it can observe before it runs. The application uses this manifest for UI presentation, authorization prompts, platform gating, and tests.
-
-### 3. First-party native collectors share the SDK contract
-
-The macOS and Linux collectors are not privileged special cases. They implement the same collector interface intended for future first-party or externally launched adapters.
-
-### 4. Extension is out-of-process by default
-
-V0.4 does not load arbitrary third-party dynamic libraries into HarnessScope. Custom collectors integrate through a versioned process/JSONL protocol. This keeps crashes, dependency conflicts, and permissions outside the core process and allows strict schema validation.
-
-### 5. Fail closed on uncertain authority
-
-When required metadata cannot be read safely, the collector emits an explicit unavailable/unknown diagnostic or omits that field. It does not escalate privileges or substitute invasive techniques.
-
-## Component model
+This avoids a Node native-addon dependency, preserves process isolation, and prevents the renderer from receiving filesystem/process/native watcher APIs.
 
 ```text
 Authorized target / selected paths
-        |
-        v
-+-----------------------------+
-| Collector implementation    |
-| - macOS native              |
-| - Linux native              |
-| - external SDK adapter      |
-+-----------------------------+
-        |
-        | CollectorEnvelope JSON
-        v
-+-----------------------------+
-| Collector host / registry   |
-| - manifest validation       |
-| - lifecycle                 |
-| - capability checks         |
-| - bounded buffering         |
-| - diagnostics               |
-+-----------------------------+
-        |
-        | TraceEventInput
-        v
-+-----------------------------+
-| Existing HarnessScope core  |
-| redaction -> SQLite -> infer|
-+-----------------------------+
-        |
-        +--> CLI
-        +--> Tauri desktop
-        +--> Electron fallback
+              |
+              v
++----------------------------------+
+| Native/custom collector process  |
+| Collector Protocol v1 over JSONL |
++----------------------------------+
+              |
+              v
++----------------------------------+
+| Runtime collector host           |
+| Node host: CLI + Electron        |
+| Rust host: Tauri                 |
++----------------------------------+
+              |
+              v
++----------------------------------+
+| canonical TraceEventInput        |
+| redaction -> SQLite -> inference |
++----------------------------------+
 ```
 
-## Collector SDK
+## Repository component boundaries
 
-### Package boundary
+V0.4 adds these logical units:
 
-Add a framework-independent Rust module/crate for collector contracts. The exact crate split is chosen in the implementation plan, but the public conceptual interface is fixed by this design.
+### `crates/harnesscope-collector-sdk`
 
-Core concepts:
+Framework-independent Rust protocol/domain crate. It owns:
 
-- `CollectorManifest`
-- `CollectorCapability`
-- `CollectorConfigSchema`
-- `CollectorStartRequest`
-- `CollectorEnvelope`
-- `CollectorDiagnostic`
-- `CollectorHandle`
-- `CollectorStatus`
+- Collector Protocol v1 structures;
+- manifest/capability validation;
+- envelope size/sequence validation primitives;
+- stable collector error codes;
+- JSON serialization compatibility fixtures.
 
-### Collector manifest
+It does not spawn processes, watch files, open SQLite, or depend on Tauri.
 
-A collector manifest is immutable metadata describing an implementation:
+### `crates/harnesscope-native-collector`
+
+First-party collector executable with target-specific modules:
+
+- macOS process/file observation when `target_os = "macos"`;
+- Linux process/file observation when `target_os = "linux"`.
+
+The binary speaks Collector Protocol v1 over stdin/stdout. Windows builds may compile a protocol/unsupported-platform shell for contract testing, but V0.4 exposes no new Windows native collector capability.
+
+### `src/collectors/host.mjs`
+
+Node protocol host used by the portable Node CLI and Electron fallback. It owns process lifecycle, JSONL framing, protocol validation, bounded buffering, and routing events to the existing Node store/redaction path.
+
+It never trusts collector stdout and never persists raw collector lines directly.
+
+### Tauri collector host
+
+The Tauri Rust shell uses `harnesscope-collector-sdk` validation and explicit child-process lifecycle code to host the same Collector Protocol v1. It routes accepted events through the existing Rust core/store boundary.
+
+The renderer sees only explicit versioned Tauri commands.
+
+### Shared fixtures
+
+Canonical Collector Protocol fixtures are consumed by both Node and Rust host tests so host semantics cannot drift silently.
+
+## Collector Protocol v1
+
+### Transport
+
+- newline-delimited UTF-8 JSON on stdin/stdout;
+- one JSON object per line;
+- human-readable logs only on stderr;
+- stdout is protocol-only;
+- protocol version is string `"1"`.
+
+### Startup handshake
+
+Host launches a collector only after explicit user selection/configuration.
+
+1. Host starts the child with a minimized environment.
+2. Host writes one `start` request line.
+3. Collector writes one `manifest` response line.
+4. Host validates SDK version, collector ID, platform, requested capabilities, and explicit path/target scope.
+5. Host writes one `start-confirmed` line containing the allowed capability intersection.
+6. Collector may then emit event/diagnostic/heartbeat envelopes.
+
+A collector that emits evidence before successful handshake is terminated with `COLLECTOR_PROTOCOL_ERROR`.
+
+### Manifest
 
 ```json
 {
+  "type": "manifest",
   "sdkVersion": "1",
-  "id": "harnesscope.macos.process-files",
-  "name": "macOS Process + Files",
-  "version": "0.4.0",
-  "platforms": ["macos"],
-  "capabilities": [
-    "process.lifecycle",
-    "process.metadata",
-    "file.metadata"
-  ],
-  "requiresExplicitPaths": true,
-  "requiresTargetLaunch": true,
-  "contentCapture": "unsupported"
+  "collector": {
+    "id": "harnesscope.macos.process-files",
+    "name": "macOS Process + Files",
+    "version": "0.4.0",
+    "platforms": ["macos"],
+    "capabilities": [
+      "process.lifecycle",
+      "process.metadata",
+      "file.metadata"
+    ],
+    "requiresExplicitPaths": true,
+    "requiresTargetLaunch": true,
+    "contentCapture": "unsupported"
+  }
 }
 ```
 
 Rules:
 
-- `sdkVersion` is required and V0.4 accepts only `1`.
-- Collector IDs are stable reverse-DNS-style strings.
-- Unknown capabilities are rejected for first-party collectors and ignored only in explicitly forward-compatible external manifest parsing where no action is authorized from them.
-- A manifest cannot grant itself capabilities; runtime host policy is authoritative.
+- first-party collector IDs are stable reverse-DNS-style strings;
+- V0.4 accepts protocol version `1` only;
+- unknown requested capabilities are never authorized;
+- host policy is authoritative even if the manifest claims a capability;
+- external collector manifests may contain unknown future metadata fields, but those fields grant no behavior or permission;
+- first-party manifest fixtures are exact-contract tested.
 
-### Capabilities
+### V0.4 capabilities
 
-V0.4 defines only the capabilities required by current product scope:
+Implemented:
 
-- `process.lifecycle` — start/exit and parent-child relationships where observable;
-- `process.metadata` — executable identity, PID/PPID, command line when accessible through supported APIs;
-- `file.metadata` — selected-path create/write/remove/rename metadata;
-- `collector.diagnostics` — structured warnings/errors/status.
+- `process.lifecycle` — observable process start/exit and parent-child relationships;
+- `process.metadata` — executable identity, PID/PPID, command line when supported and accessible;
+- `file.metadata` — explicitly scoped create/write/remove/rename metadata;
+- `collector.diagnostics` — structured status/warning/error messages.
 
-Reserved but not implemented in V0.4:
+Reserved and unauthorized in V0.4:
 
 - `network.metadata`;
 - `registry.metadata`;
 - `kernel.trace`;
 - `content.capture`.
 
-### Lifecycle
+### Start request
 
-A collector follows a bounded lifecycle:
-
-```text
-registered -> starting -> running -> stopping -> stopped
-                    \-> failed
-```
-
-Required operations:
-
-- list manifests;
-- validate config;
-- start;
-- read/drain envelopes;
-- query status;
-- stop;
-
-Starting an already-running collector with the same instance key returns a deterministic conflict error. Stop is idempotent after a terminal state.
-
-### Envelope protocol
-
-Every collector output is one versioned envelope:
+A start request includes only explicit scope required by the selected collector:
 
 ```json
 {
+  "type": "start",
+  "sdkVersion": "1",
+  "instanceId": "...",
+  "sessionId": "...",
+  "paths": ["/explicit/user/selected/path"],
+  "hashFiles": false,
+  "target": {
+    "command": "/path/to/authorized-target",
+    "args": []
+  }
+}
+```
+
+No secret values are required by the first-party protocol.
+
+### Evidence envelopes
+
+```json
+{
+  "type": "event",
   "sdkVersion": "1",
   "collectorId": "harnesscope.linux.process-files",
   "instanceId": "...",
   "sequence": 42,
-  "kind": "event",
   "event": {
     "source": "collector",
     "kind": "ProcessStarted",
@@ -208,189 +226,238 @@ Every collector output is one versioned envelope:
 }
 ```
 
-Envelope `kind` is one of:
+Protocol output types after handshake:
 
-- `event` — contains one canonical `TraceEventInput`;
-- `diagnostic` — contains a structured diagnostic;
-- `heartbeat` — proves collector liveness without creating a trace event;
-- `completed` — terminal clean completion marker.
+- `event` — one canonical `TraceEventInput`;
+- `diagnostic` — structured redaction-safe diagnostic;
+- `heartbeat` — liveness only, not persisted as ordinary evidence unless host records a state transition;
+- `completed` — clean terminal marker.
 
 Rules:
 
-- `sequence` is monotonically increasing per collector instance.
-- Duplicate sequence values are rejected.
-- Out-of-order values fail the collector instance rather than silently reorder evidence.
-- Envelope size is bounded; oversize external messages are rejected before JSON expansion reaches persistence.
-- Diagnostics never contain raw secret values.
+- `sequence` starts at `1` and increments by exactly `1` per emitted post-handshake envelope;
+- duplicate or skipped/out-of-order sequence numbers fail that collector instance with `COLLECTOR_SEQUENCE_ERROR`;
+- every line has a hard byte bound before JSON parsing;
+- protocol nesting/collection sizes are bounded by validation;
+- malformed JSON fails only the collector instance, not the workspace;
+- raw stdout is never persisted;
+- all accepted events pass core redaction before SQLite.
 
-## External Collector SDK protocol
+### Stop lifecycle
 
-V0.4 supports custom collectors as explicitly launched child processes using newline-delimited JSON over stdin/stdout.
+Collector states are:
 
-The host launches only a user-selected executable/command. It does not auto-discover or auto-execute binaries from arbitrary directories.
+```text
+registered -> starting -> running -> stopping -> stopped
+                    \-> failed
+```
 
-Protocol:
+Host sends an explicit stop request. The child receives a bounded graceful-stop interval. If it does not terminate, the host terminates the owned child and records `COLLECTOR_STOP_TIMEOUT`.
 
-1. Host launches collector with a minimal environment.
-2. Host sends one `CollectorStartRequest` line on stdin.
-3. Collector writes one manifest handshake line.
-4. Host validates SDK version, collector ID, manifest, and requested capabilities.
-5. Collector emits envelope lines on stdout.
-6. Human-readable logs belong on stderr and are not treated as evidence.
-7. Host sends a stop request on stdin or terminates the owned child after a bounded graceful-stop timeout.
+Stop after `stopped` or `failed` is idempotent.
 
-Security constraints:
+## External Collector SDK
 
-- secrets are not injected into the collector environment;
-- inherited environment is minimized and sensitive variable names are removed unless explicitly required by a future approved design;
-- external collector stdout is untrusted input;
-- all events still pass core redaction before SQLite;
-- external collectors cannot request arbitrary filesystem reads through HarnessScope APIs;
-- file/path scope is supplied explicitly by the user and host.
+Custom collectors are explicitly launched executables that implement Collector Protocol v1.
+
+V0.4 does not provide automatic discovery, download, installation, marketplace, or trust elevation.
+
+Host security requirements:
+
+- user selects/configures the executable explicitly;
+- child environment is minimized;
+- common secret environment variables are removed before launch;
+- no HarnessScope credential/token is injected;
+- collector stdout is treated as untrusted input;
+- filesystem scope is explicit and host-visible;
+- external collectors cannot call back into unrestricted HarnessScope filesystem/process APIs;
+- event data is redacted again by core even if the collector claims it already redacted content.
+
+A repository-owned synthetic collector is the reference implementation and protocol test target.
+
+## Native sidecar packaging and availability
+
+### macOS
+
+The first-party native collector executable is built for the macOS universal target and bundled inside the Tauri `.app`/DMG package as an application-owned sidecar. The Tauri host launches only that bundled path for the first-party collector ID.
+
+The source tree can also build/run the collector directly for CLI development.
+
+### Linux
+
+V0.4 does not introduce Linux desktop release artifacts. Linux native collection is supported when running from source with the first-party collector binary built from the pinned Rust workspace.
+
+The portable Node CLI continues to work without Rust for all pre-V0.4 commands. New native `collector run` commands fail with a clear `COLLECTOR_NOT_INSTALLED`/availability diagnostic if the required first-party collector executable is not present.
+
+### Electron fallback
+
+Electron uses the Node collector host and the same bundled/source collector executable when available. Existing Electron functionality remains usable when no native collector sidecar is installed.
 
 ## macOS native collector
 
 ### Scope
 
-First-party macOS collector observes a process launched by HarnessScope and attributable descendants, plus metadata changes beneath user-selected directories.
+Observe one process launched by HarnessScope, attributable descendants where supported, and metadata changes beneath explicit user-selected directories.
 
 ### Process observation
 
-Use supported macOS process APIs/system facilities available without injection. Record only fields the current user can lawfully access:
+Use supported macOS APIs/system facilities without injection. Record only what the current user is allowed to read:
 
-- PID and parent PID;
-- process start/exit observation;
-- executable path/identity when available;
-- command line when available through supported interfaces;
-- start/exit timestamp;
-- exit code only for processes owned by the launcher when available.
+- PID/PPID;
+- start/exit observation;
+- executable identity/path when available;
+- command line when available;
+- start/exit timestamps;
+- exit code only for launcher-owned processes when available.
 
-If a field is unavailable due to OS privacy/permission restrictions, record it as unavailable rather than attempting bypass.
+Unavailable privacy-restricted fields are represented as unavailable/unknown. The collector never escalates privileges to fill them.
 
 ### File observation
 
-Use supported filesystem notification facilities for explicitly selected directories. V0.4 captures metadata only:
+Use supported macOS filesystem notification facilities for selected directories only.
+
+Capture metadata only:
 
 - path;
 - operation category;
 - timestamp;
-- size where safely available;
-- optional hash only when the file is readable and hashing is explicitly enabled by collector config.
+- size when safely available;
+- optional SHA-256 hash only when `hashFiles=true`, path is inside explicit scope, and the current user can read the file normally.
 
-File contents are not captured by the V0.4 native collector.
+V0.4 does not capture file contents.
 
-Events can be coalesced by the OS; the collector must preserve that uncertainty in diagnostics rather than inventing a one-to-one write history.
+Because macOS notification facilities may coalesce events, the collector records a diagnostic when event granularity is uncertain rather than inventing a one-to-one write sequence.
 
 ## Linux native collector
 
 ### Scope
 
-First-party Linux collector observes a process launched by HarnessScope and attributable descendants, plus metadata changes beneath explicitly selected directories.
+Observe one process launched by HarnessScope, attributable descendants, and metadata changes beneath explicit selected directories.
 
 ### Process observation
 
-Use supported `/proc` and process APIs available to the current user without ptrace or memory inspection. Record:
+Use supported `/proc`/process APIs available to the current user. Do not use ptrace or memory inspection.
+
+Record when available:
 
 - PID/PPID;
 - lifecycle;
-- executable path when permitted;
-- command line when permitted;
-- start/exit timestamp;
-- exit code for launcher-owned children when available.
+- executable identity/path;
+- command line;
+- start/exit timestamps;
+- exit code for launcher-owned processes.
 
-If `/proc` visibility is restricted by container, namespace, hidepid, or policy, emit a structured capability/visibility diagnostic and continue with the observable subset.
+If `/proc` visibility is restricted by container namespace, `hidepid`, or policy, emit a structured visibility diagnostic and continue with the observable subset.
 
 ### File observation
 
-Use supported filesystem notifications, with inotify as the normal Linux implementation where available. Observe only explicit selected directories.
+Use inotify where available for explicitly selected directories.
 
-The host must handle watch exhaustion or recursive-watch limits as bounded diagnostics, not by silently widening privileges or polling the whole filesystem.
+Recursive directory scope is implemented by watches beneath the selected root only. Newly created directories under the selected root may receive watches. Parent/sibling/system directories are never added implicitly.
 
-## Collector registry and host
+Watch exhaustion or platform limits produce a bounded diagnostic and incomplete-evidence state; the collector does not silently broaden scope or request elevated privileges.
 
-The registry provides one authoritative list of available collectors to CLI and desktop front ends.
+## Host registry and availability
 
-It is responsible for:
+Each runtime host exposes one authoritative collector registry containing:
 
-- registering first-party manifests;
-- registering user-configured external collector commands;
-- platform filtering;
-- config schema validation;
-- capability intersection with host policy;
-- instance lifecycle;
-- sequence validation;
-- bounded buffering/backpressure;
-- conversion to core `TraceEventInput` persistence calls;
-- structured diagnostics/status.
+- first-party manifests known to that product version;
+- current platform availability;
+- executable availability/path for first-party sidecars;
+- explicitly configured external collectors;
+- capability policy;
+- instance status.
 
-### Backpressure
+Registry operations:
 
-Collectors must not cause unbounded memory growth.
+- list;
+- describe;
+- validate configuration;
+- start;
+- status;
+- stop.
 
-V0.4 uses a bounded per-instance queue. When the queue cannot accept more data within a bounded interval:
+Starting the same instance key twice returns `COLLECTOR_ALREADY_RUNNING`.
 
-- the collector instance transitions to failed/stopped according to collector type;
-- a diagnostic records evidence loss risk;
-- the host never pretends the trace is complete.
+## Backpressure and evidence completeness
 
-Exact queue sizes/timeouts are implementation constants covered by tests and documented in code; they are not user-facing compatibility promises.
+Each collector instance has a bounded queue between protocol reader and persistence.
+
+If the queue cannot accept data within the configured bounded interval:
+
+1. host stops/fails that collector instance;
+2. host records `COLLECTOR_BACKPRESSURE`;
+3. session receives an explicit incomplete-evidence diagnostic;
+4. already committed evidence remains valid;
+5. host never claims the observation is complete.
+
+Queue sizes and timeouts are implementation constants, tested and documented in source, not long-term public compatibility values.
 
 ## CLI integration
 
-Add an additive collector command family while retaining existing commands.
-
-Conceptual interface:
+Add an additive command family:
 
 ```text
 harnesscope collector list
 harnesscope collector describe <collector-id>
-harnesscope collector run <collector-id> --session <id> [collector options]
+harnesscope collector run <collector-id> --session <id> [scope options] -- <target> [args...]
 harnesscope collector external --command <exe> --session <id> [scope options]
 ```
 
-For process collectors, `collector run` may accept `-- <target> [args...]` when the collector requires an owned launch.
+`collector list` reports installed/available/unavailable status without treating an unavailable native sidecar as a product failure.
 
-The implementation plan may reuse existing `launch` and `watch-files` commands internally. V0.4 must not create two incompatible persistence paths.
+Existing `launch` and `watch-files` commands retain their V0.3 behavior in V0.4. They are not silently reimplemented through the new collector path in this release. Unification can happen later after explicit parity evidence.
 
 ## Desktop integration
 
-Tauri remains the preferred desktop runtime.
+Tauri remains preferred.
 
-Add a Collector panel/action family that can:
+Add collector actions for:
 
-- list available collectors;
-- display capability/authorization information;
-- configure selected paths/target launch;
-- start/stop one collector instance;
-- show running/failed/stopped status and diagnostics.
+- list/describe collectors;
+- configure target and selected paths;
+- display requested capabilities before start;
+- start/stop one instance;
+- show running/stopped/failed/incomplete status and diagnostics.
 
-The renderer receives only versioned collector actions through the existing bridge pattern. It does not receive raw process-spawn, filesystem, or native watcher APIs.
+The renderer never receives raw spawn, filesystem, watcher, SQLite, or sidecar handles.
 
-Electron fallback exposes the same action names where feasible, backed by the shared host, so renderer behavior does not fork by desktop runtime.
+Electron fallback uses the same renderer action names backed by the Node collector host where the collector executable is available.
 
-## Data flow and persistence
+## Persistence and provenance
 
-For every collector event:
+No collector-specific evidence table is added.
+
+Accepted events flow through:
 
 ```text
-collector raw observation
-  -> CollectorEnvelope validation
-  -> canonical TraceEventInput
-  -> existing core redaction
-  -> append_event / append_events
-  -> SQLite
-  -> existing inference/export/UI
+protocol line
+ -> protocol validation
+ -> TraceEventInput
+ -> existing redaction
+ -> existing append_event/append_events
+ -> SQLite
+ -> existing inference/export/UI
 ```
 
-No collector-specific SQLite table is required for event payloads.
+Collector lifecycle is recorded using canonical diagnostic/status trace events with:
 
-Collector instance metadata may be persisted as ordinary trace diagnostics/events or in an additive metadata structure if implementation requires restart history. Any schema change must be backward-compatible with V0.3 workspaces and documented in the implementation plan.
+- collector ID/version;
+- instance ID;
+- requested and authorized capabilities;
+- selected-scope summary;
+- start/stop/failure state;
+- evidence-completeness flag;
+- protocol/runtime error code where applicable.
 
-## Error model
+Raw external stderr is not persisted automatically. A bounded redacted diagnostic summary may be included on failure.
 
-Stable collector error categories:
+## Stable error categories
+
+V0.4 defines:
 
 - `COLLECTOR_NOT_FOUND`
+- `COLLECTOR_NOT_INSTALLED`
 - `COLLECTOR_UNSUPPORTED_PLATFORM`
 - `COLLECTOR_INVALID_CONFIG`
 - `COLLECTOR_CAPABILITY_DENIED`
@@ -402,162 +469,177 @@ Stable collector error categories:
 - `COLLECTOR_RUNTIME_FAILED`
 - `COLLECTOR_STOP_TIMEOUT`
 
-Errors returned to UI/CLI are structured and redacted. Platform-native error text may be included only after removing sensitive path/value data according to existing redaction policy.
-
-A collector failure never corrupts an existing workspace. Already committed evidence remains valid; the session receives a diagnostic that the observation may be incomplete.
+Errors returned to CLI/UI are structured and redacted. Collector failure cannot roll back or corrupt evidence already committed to the workspace.
 
 ## Authorization and privacy boundary
 
-Before start, the user must be able to see:
+Before start the user can see:
 
-- collector name;
+- collector ID/name/version;
 - requested capabilities;
 - target command when applicable;
-- selected filesystem paths;
-- whether hashing is enabled.
+- explicit filesystem roots;
+- whether hashing is enabled;
+- first-party vs external collector origin.
 
-V0.4 never silently expands a selected path to parent/system directories.
+V0.4 never silently expands a selected root to its parent or unrelated system directories.
 
-Credential directories and common secret stores remain excluded by default. A future feature may allow explicit opt-in metadata observation for excluded paths, but V0.4 does not add that exception.
+Common credential/token stores remain excluded by default from first-party file observation. V0.4 adds no override for those default exclusions.
 
 ## Testing strategy
 
-### SDK contract tests
+### Protocol/SDK contract
 
-Prove:
+Canonical fixtures prove in both Node and Rust:
 
-- manifest parsing and version rejection;
-- capability validation;
-- lifecycle transitions;
-- duplicate/out-of-order sequence rejection;
-- envelope size bounds;
-- stdout/stderr separation for external collectors;
-- malformed JSON fails one collector instance without corrupting the workspace;
-- graceful and forced stop behavior;
-- bounded queue/backpressure behavior.
+- valid handshake;
+- version rejection;
+- capability intersection;
+- unknown capability denial;
+- malformed JSON rejection;
+- line-size/nesting bounds;
+- exact sequence semantics;
+- stdout/stderr separation;
+- clean completion;
+- stop timeout;
+- backpressure failure semantics.
 
-### Redaction boundary tests
+### Synthetic external collector
 
-Use sentinel secrets in external collector messages and platform collector synthetic fixtures. Assert the sentinel never appears in persisted SQLite bytes, exports, diagnostics, or UI/API responses.
+A repository-owned executable/script implements Protocol v1 and can emit deterministic events, malformed messages, sequence gaps, stderr diagnostics, and sentinel secrets for tests.
 
-### macOS tests
+### Redaction boundary
+
+Sentinel secrets arriving from a collector must be absent from:
+
+- SQLite database bytes after close;
+- exported Markdown/JSON/tool-schema artifacts;
+- host diagnostics;
+- CLI/Tauri/Electron responses.
+
+### macOS native integration
 
 On native macOS CI:
 
-- launch a repository-owned synthetic child process;
-- observe start/exit and attributable descendant where deterministic;
-- observe file create/write/rename/remove within a temporary selected directory;
-- verify no event is emitted for a sibling directory outside scope;
-- verify native collector package compiles in the universal Tauri build.
+- build the universal first-party sidecar;
+- launch a repository-owned process with a deterministic child;
+- observe lifecycle evidence where supported;
+- create/write/rename/remove files inside a temporary selected root;
+- verify sibling/outside-root activity is absent;
+- validate coalesced/unavailable semantics;
+- package the sidecar into the universal Tauri app and verify it exists in the built bundle.
 
-Tests must tolerate OS-supported metadata fields being unavailable while requiring correct unavailable-state semantics.
-
-### Linux tests
+### Linux native integration
 
 On Ubuntu CI:
 
-- launch a synthetic process tree;
-- validate PID/PPID lifecycle evidence;
-- observe file metadata changes within a temporary selected directory;
-- verify outside-scope changes are absent;
-- test restricted/unavailable metadata behavior with injectable test adapters rather than changing host security policy.
+- build the first-party collector;
+- launch a deterministic process tree;
+- observe PID/PPID lifecycle evidence;
+- create/write/rename/remove files inside selected scope;
+- verify outside-root activity is absent;
+- test restricted `/proc` and watch-limit behavior through injectable adapters/fixtures without altering runner security policy.
 
-### Cross-runtime regression
+### V0.3 regression
 
-Existing V0.3 suite remains required:
+All existing V0.3 gates remain required:
 
-- Node tests on Ubuntu/Windows/macOS;
+- Node tests Ubuntu/Windows/macOS;
 - Rust format/clippy/tests;
 - Node/Rust semantic parity;
-- v0.2/v0.3 workspace compatibility;
-- Tauri Windows and macOS native package validation;
+- V0.2/V0.3 workspace compatibility;
+- Tauri Windows/macOS package validation;
 - Electron fallback contract tests.
 
 ## CI design
 
-Extend existing fail-closed CI rather than create a parallel untrusted release path.
-
-Required V0.4 gates before merge/release:
+Required V0.4 merge/release gates:
 
 1. Node regression — Ubuntu, Windows, macOS.
-2. Rust core/SDK — Ubuntu, Windows, macOS.
-3. Collector SDK protocol tests — Ubuntu, Windows, macOS where portable.
-4. Linux native collector integration — Ubuntu.
-5. macOS native collector integration — macOS.
-6. Node/Rust semantic parity.
-7. Tauri Windows package gate.
-8. Tauri macOS universal package gate.
-9. Release-contract exact-head verification.
+2. Rust core + Collector SDK — Ubuntu, Windows, macOS.
+3. Protocol parity fixtures — Node and Rust.
+4. Synthetic external collector integration — Ubuntu, Windows, macOS.
+5. Linux native collector integration — Ubuntu.
+6. macOS native collector integration — macOS.
+7. Existing Node/Rust semantic parity.
+8. Tauri Windows native package gate.
+9. Tauri macOS universal package gate including bundled first-party sidecar.
+10. Exact-head release-contract tests.
 
-Release workflow triggers only from a successful `main` CI run whose SHA exactly matches the source used for `v0.4.0`.
+No PR is merged until exact-head required checks are green.
+
+After merge, fresh `main` CI must be green before release. `release-v0.4.0` may create tag/release only when the triggering successful `main` SHA exactly matches the release source SHA.
 
 ## Release artifacts
 
-V0.4 retains the current desktop artifact shape with version replacement:
+V0.4 retains exactly seven top-level GitHub Release assets:
 
 ```text
-Windows
 HarnessScope-0.4.0-windows-x64-Setup.exe
 HarnessScope-0.4.0-windows-x64.msi
 HarnessScope-0.4.0-windows-x64-portable.zip
-
-macOS
 HarnessScope-0.4.0-macos-universal.dmg
 HarnessScope-0.4.0-macos-universal.app.zip
-
-Source / verification
 HarnessScope-0.4.0-source.zip
 SHA256SUMS.txt
 ```
 
-Linux native collection ships in source/CLI runtime in V0.4; V0.4 does not add a Linux desktop binary release artifact. A packaged Linux desktop distribution is a separate future design because package formats, WebKit/runtime dependencies, signing, and support expectations require explicit scope.
+The macOS first-party collector sidecar is contained inside the macOS application artifacts, not uploaded as an eighth top-level release asset.
+
+Linux native collection is source-built in V0.4; no Linux desktop release asset is added.
 
 ## Documentation
 
-Update README and docs to include:
+README/docs must document:
 
-- collector architecture and capability model;
-- `collector list/describe/run` examples;
-- macOS permission/visibility limitations;
-- Linux `/proc`/inotify visibility limitations;
-- external collector SDK protocol example using a repository-owned synthetic collector;
-- explicit statement that collectors do not bypass OS security controls;
+- Collector Protocol v1;
+- first-party versus external collector trust model;
+- collector list/describe/run examples;
+- macOS visibility/permission limitations;
+- Linux `/proc`/inotify limitations;
+- source-build instructions for Linux native collector;
+- availability behavior when a sidecar is absent;
+- synthetic custom collector example;
+- explicit no-bypass/no-memory-scraping boundary;
 - release checksum verification.
 
 ## Migration and rollout
 
-V0.4 is additive.
+V0.4 is additive:
 
-- Opening an existing V0.3 workspace does not require a destructive migration.
-- Existing imports, launch observation, inference, compare, and export continue to work.
-- Existing launch/watch implementation may be routed through first-party collectors only after parity tests prove equivalent observable behavior.
-- If migration to the new collector host changes an existing command's behavior, the implementation must preserve the V0.3 contract or document a separately approved correction before merge.
+- existing workspaces require no destructive migration;
+- existing `launch`, `watch-files`, import, infer, compare, export flows keep V0.3 behavior;
+- new collector flows use separate additive commands/actions;
+- existing flows are not switched to collectors during V0.4;
+- any future unification requires parity evidence and a separately reviewed change.
 
 ## Acceptance criteria
 
-V0.4 is complete only when all of the following are true:
+V0.4 is complete only when:
 
-1. `package.json` and native app metadata report exactly `0.4.0`.
-2. Collector SDK version 1 is documented and contract-tested.
-3. CLI can list/describe/start/stop first-party collectors.
-4. An explicitly launched external synthetic collector can stream valid SDK envelopes into a session.
-5. macOS native collector observes an owned synthetic process tree and selected-directory file metadata on native macOS CI.
-6. Linux native collector observes an owned synthetic process tree and selected-directory file metadata on native Linux CI.
-7. Out-of-scope filesystem activity is not persisted by the native collectors.
-8. Sentinel secrets from collector input are absent from SQLite bytes and exports.
-9. Existing V0.3 Node/Rust/parity/workspace/Tauri/Electron regression gates remain green.
-10. Exact-head PR CI is green before merge.
-11. Fresh `main` CI is green after merge.
-12. `v0.4.0` release is created only from that exact successful `main` SHA.
-13. Release contains exactly the expected seven V0.4 assets and valid SHA-256 checksums.
+1. package and native app metadata report exactly `0.4.0`.
+2. Collector Protocol v1 is documented and contract-tested in Node and Rust.
+3. CLI lists/describes collectors and reports availability correctly.
+4. CLI can explicitly launch an installed first-party collector and an explicitly selected external collector.
+5. Tauri can start/stop the bundled macOS first-party sidecar through bounded commands.
+6. Electron can host the same protocol when the sidecar/external collector is available.
+7. macOS native CI proves owned process + selected-root file metadata observation and outside-root exclusion.
+8. Linux native CI proves owned process + selected-root file metadata observation and outside-root exclusion.
+9. protocol sequence, malformed-input, stop-timeout, and backpressure tests pass.
+10. sentinel secrets from collector input are absent from persisted SQLite bytes and exports.
+11. existing V0.3 Node/Rust/parity/workspace/Tauri/Electron regressions remain green.
+12. exact-head PR CI is green before merge.
+13. fresh `main` CI is green after merge.
+14. `v0.4.0` tag/release points exactly to that successful `main` SHA.
+15. release contains exactly the seven expected V0.4 assets with SHA-256 verification.
 
 ## Deferred after V0.4
 
 - Windows ETW high-volume collector;
 - packaged Linux Tauri desktop artifacts;
-- signed/notarized desktop releases;
+- signed/notarized releases;
 - richer network metadata collectors;
 - collector marketplace/discovery/automatic installation;
 - in-process native plugin ABI;
-- clean-room harness generator/code generation;
-- any invasive instrumentation or security-control bypass.
+- automatic clean-room harness generation/code generation;
+- invasive instrumentation or security-control bypass features.
