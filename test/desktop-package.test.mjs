@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
-test('package metadata pins HarnessScope v0.3 Electron fallback and Tauri toolchains', () => {
-  assert.equal(pkg.version, '0.3.0');
+test('package metadata pins HarnessScope v0.4 Electron fallback and Tauri toolchains', () => {
+  assert.equal(pkg.version, '0.4.0');
   assert.equal(pkg.main, 'apps/desktop/main.mjs');
   assert.equal(pkg.devDependencies?.electron, '44.1.0');
   assert.equal(pkg.devDependencies?.['electron-builder'], '26.15.3');
@@ -16,6 +16,7 @@ test('package metadata pins HarnessScope v0.3 Electron fallback and Tauri toolch
   assert.match(pkg.scripts?.['desktop:mac'] || '', /--mac/);
   assert.equal(pkg.scripts?.['tauri:win'], 'tauri build --config apps/tauri/src-tauri/tauri.conf.json --target x86_64-pc-windows-msvc --bundles nsis,msi');
   assert.equal(pkg.scripts?.['tauri:mac'], 'tauri build --config apps/tauri/src-tauri/tauri.conf.json --target universal-apple-darwin --bundles dmg,app');
+  assert.equal(pkg.scripts?.['collector:build'], 'cargo build -p harnesscope-collectors --bin harnesscope-native-collector --release');
 });
 
 test('electron-builder fallback remains ASAR-bounded and targets unsigned Windows/macOS artifacts', () => {
