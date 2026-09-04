@@ -108,10 +108,20 @@ pub struct OperationEnvelope<T> {
 
 impl<T> OperationEnvelope<T> {
     pub fn success(value: T) -> Self {
-        Self { ok: true, value: Some(value), code: None, message: None }
+        Self {
+            ok: true,
+            value: Some(value),
+            code: None,
+            message: None,
+        }
     }
 
     pub fn failure(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self { ok: false, value: None, code: Some(code.into()), message: Some(message.into()) }
+        Self {
+            ok: false,
+            value: None,
+            code: Some(code.into()),
+            message: Some(message.into()),
+        }
     }
 }
