@@ -105,7 +105,9 @@ pub fn import_jsonl(path: &Path, map_path: &Path) -> Result<Vec<TraceEventInput>
         .enumerate()
     {
         let record: Value = serde_json::from_str(line)?;
-        let data = get_path(&record, data_path).cloned().unwrap_or(Value::Object(Default::default()));
+        let data = get_path(&record, data_path)
+            .cloned()
+            .unwrap_or(Value::Object(Default::default()));
         let redacted = redact_value(&data, "");
         let timestamp = value_as_string(get_path(&record, timestamp_path)).unwrap_or(now_iso()?);
         let correlation_id = value_as_string(get_path(&record, correlation_path))
@@ -117,7 +119,14 @@ pub fn import_jsonl(path: &Path, map_path: &Path) -> Result<Vec<TraceEventInput>
             kind: canonical_kind(get_path(&record, kind_path)),
             correlation_id: Some(correlation_id),
             data: redacted.value,
-            redaction: Some(if redacted.redacted { "redacted" } else { "none" }.into()),
+            redaction: Some(
+                if redacted.redacted {
+                    "redacted"
+                } else {
+                    "none"
+                }
+                .into(),
+            ),
         });
     }
 
