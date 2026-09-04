@@ -45,10 +45,7 @@ pub struct CollectorHandle {
 }
 
 impl CollectorHandle {
-    pub fn recv_timeout(
-        &self,
-        timeout: Duration,
-    ) -> Result<CollectorEnvelope, RecvTimeoutError> {
+    pub fn recv_timeout(&self, timeout: Duration) -> Result<CollectorEnvelope, RecvTimeoutError> {
         self.receiver.recv_timeout(timeout)
     }
 
@@ -155,7 +152,9 @@ fn validate_request(request: &CollectorStartRequest) -> Result<(), CollectorRunt
         || request.instance_id.trim().is_empty()
         || request.collector_id.trim().is_empty()
     {
-        return Err(CollectorRuntimeError::Protocol("invalid start request".into()));
+        return Err(CollectorRuntimeError::Protocol(
+            "invalid start request".into(),
+        ));
     }
 
     let manifest = first_party_manifests()
@@ -172,7 +171,8 @@ fn validate_request(request: &CollectorStartRequest) -> Result<(), CollectorRunt
     {
         return Err(CollectorRuntimeError::CapabilityDenied);
     }
-    if capability_requested(request, CollectorCapability::FileMetadata) && request.paths.is_empty() {
+    if capability_requested(request, CollectorCapability::FileMetadata) && request.paths.is_empty()
+    {
         return Err(CollectorRuntimeError::Protocol(
             "file metadata collection requires an explicit path".into(),
         ));
@@ -222,11 +222,9 @@ fn drain_file_events(
                     emitter.event(value)?;
                 }
             }
-            Err(error) => emitter.diagnostic(
-                "COLLECTOR_FILE_VISIBILITY",
-                error.to_string(),
-                None,
-            )?,
+            Err(error) => {
+                emitter.diagnostic("COLLECTOR_FILE_VISIBILITY", error.to_string(), None)?
+            }
         }
     }
     Ok(())
