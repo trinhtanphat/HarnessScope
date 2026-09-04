@@ -3,6 +3,7 @@ resolver = "2"
 members = [
   "crates/harnesscope-core",
   "crates/harnesscope-parity",
+  "crates/harnesscope-collector-sdk",
   "apps/tauri/src-tauri"
 ]
 
@@ -18,3 +19,6 @@ url = "=2.5.8"
 csv = "=1.4.0"
 time = { version = "=0.3.55", features = ["formatting", "parsing", "macros"] }
 sysinfo = "=0.39.6"
+crossbeam-channel = "=0.5.15"
+notify = "=8.2.0"
+sha2 = "=0.10.9"
