@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
   "crates/harnesscope-core",
-  "crates/harnesscope-parity"
+  "crates/harnesscope-parity",
+  "apps/tauri/src-tauri"
 ]
 
 [workspace.dependencies]
