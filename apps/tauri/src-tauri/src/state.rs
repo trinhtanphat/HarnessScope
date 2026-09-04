@@ -13,6 +13,9 @@ impl DesktopState {
     }
 
     pub fn with_services<T>(&self, operation: impl FnOnce(&AppServices) -> T) -> Result<T, ()> {
-        self.services.lock().map(|services| operation(&services)).map_err(|_| ())
+        self.services
+            .lock()
+            .map(|services| operation(&services))
+            .map_err(|_| ())
     }
 }

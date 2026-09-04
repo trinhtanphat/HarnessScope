@@ -58,7 +58,9 @@ pub fn session_create(
     state: State<'_, DesktopState>,
     input: SessionCreateInput,
 ) -> OperationEnvelope<Session> {
-    with_services(&state, |services| services.session_create(&input.name, &input.mode))
+    with_services(&state, |services| {
+        services.session_create(&input.name, &input.mode)
+    })
 }
 
 #[tauri::command]
@@ -83,7 +85,9 @@ pub fn compare_run(
     session_a: String,
     session_b: String,
 ) -> OperationEnvelope<CompareResult> {
-    with_services(&state, |services| services.compare_run(&session_a, &session_b))
+    with_services(&state, |services| {
+        services.compare_run(&session_a, &session_b)
+    })
 }
 
 #[tauri::command(async)]
@@ -101,7 +105,9 @@ pub fn import_procmon(
     session_id: String,
     path: PathBuf,
 ) -> OperationEnvelope<ImportResult> {
-    with_services(&state, |services| services.import_procmon(&session_id, &path))
+    with_services(&state, |services| {
+        services.import_procmon(&session_id, &path)
+    })
 }
 
 #[tauri::command(async)]
@@ -111,7 +117,9 @@ pub fn import_jsonl(
     path: PathBuf,
     map_path: PathBuf,
 ) -> OperationEnvelope<ImportResult> {
-    with_services(&state, |services| services.import_jsonl(&session_id, &path, &map_path))
+    with_services(&state, |services| {
+        services.import_jsonl(&session_id, &path, &map_path)
+    })
 }
 
 #[tauri::command(async)]
@@ -129,11 +137,15 @@ pub fn export_run(
     session_id: String,
     out_dir: PathBuf,
 ) -> OperationEnvelope<ServiceExportResult> {
-    with_services(&state, |services| services.export_run(&session_id, &out_dir))
+    with_services(&state, |services| {
+        services.export_run(&session_id, &out_dir)
+    })
 }
 
 #[tauri::command]
-pub async fn dialog_pick_directory(app: AppHandle) -> Result<OperationEnvelope<Option<String>>, ()> {
+pub async fn dialog_pick_directory(
+    app: AppHandle,
+) -> Result<OperationEnvelope<Option<String>>, ()> {
     let picked = app.dialog().file().blocking_pick_folder();
     let value = match picked {
         None => None,
@@ -152,7 +164,11 @@ pub async fn dialog_pick_file(
 ) -> Result<OperationEnvelope<Option<String>>, ()> {
     let mut dialog = app.dialog().file();
     for filter in filters {
-        let extensions = filter.extensions.iter().map(String::as_str).collect::<Vec<_>>();
+        let extensions = filter
+            .extensions
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
         dialog = dialog.add_filter(filter.name, &extensions);
     }
     let value = match dialog.blocking_pick_file() {
