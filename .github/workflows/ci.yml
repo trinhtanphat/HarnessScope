@@ -23,6 +23,8 @@ jobs:
           cache: npm
       - name: Install locked Node dependencies
         run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - name: Node tests
         run: npm test
         env:
@@ -64,6 +66,8 @@ jobs:
           cache: npm
       - name: Install locked Node dependencies
         run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.1 --profile minimal
       - name: Node/Rust semantic parity
@@ -89,6 +93,8 @@ jobs:
           rustup target add --toolchain 1.98.1 x86_64-pc-windows-msvc
       - name: Install locked desktop dependencies
         run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - name: Verify before native packaging
         run: |
           npm test
@@ -125,8 +131,6 @@ jobs:
     name: tauri-macos
     needs: [node-test, rust-core, parity]
     runs-on: macos-latest
-    env:
-      APPLE_SIGNING_IDENTITY: "-"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -139,6 +143,8 @@ jobs:
           rustup target add --toolchain 1.98.1 aarch64-apple-darwin x86_64-apple-darwin
       - name: Install locked desktop dependencies
         run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - name: Verify before native packaging
         run: |
           npm test
