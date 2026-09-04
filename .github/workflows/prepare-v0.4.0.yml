@@ -1,0 +1,178 @@
+name: prepare-v0.4.0
+
+on:
+  push:
+    branches:
+      - feature/v0.4-collector-sdk-native-collectors
+    paths:
+      - .github/workflows/prepare-v0.4.0.yml
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v0.4-collector-sdk-native-collectors
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Apply v0.4 product release and documentation metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import re
+
+          root = pathlib.Path('.')
+
+          def load_json(path):
+              return json.loads((root / path).read_text(encoding='utf-8'))
+
+          def write_json(path, value):
+              (root / path).write_text(json.dumps(value, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+
+          pkg = load_json('package.json')
+          pkg['version'] = '0.4.0'
+          write_json('package.json', pkg)
+
+          tauri = load_json('apps/tauri/src-tauri/tauri.conf.json')
+          tauri['version'] = '0.4.0'
+          write_json('apps/tauri/src-tauri/tauri.conf.json', tauri)
+
+          cargo_manifests = [
+              'crates/harnesscope-core/Cargo.toml',
+              'crates/harnesscope-parity/Cargo.toml',
+              'crates/harnesscope-collector-sdk/Cargo.toml',
+              'crates/harnesscope-collectors/Cargo.toml',
+              'apps/tauri/src-tauri/Cargo.toml',
+          ]
+          for path in cargo_manifests:
+              target = root / path
+              text = target.read_text(encoding='utf-8')
+              updated, count = re.subn(r'(?m)^version\s*=\s*"(?:0\.3\.0|0\.4\.0)"$', 'version = "0.4.0"', text, count=1)
+              if count != 1:
+                  raise SystemExit(f'Expected one package version in {path}, found {count}')
+              target.write_text(updated, encoding='utf-8')
+
+          for path in ['.github/workflows/ci.yml', 'scripts/package-macos-app.sh']:
+              target = root / path
+              text = target.read_text(encoding='utf-8')
+              if '0.3.0' not in text:
+                  raise SystemExit(f'Expected v0.3 artifact names in {path}')
+              target.write_text(text.replace('0.3.0', '0.4.0'), encoding='utf-8')
+
+          windows_path = root / 'scripts/package-windows-portable.ps1'
+          windows = windows_path.read_text(encoding='utf-8')
+          for old, new in [('0.3.0', '0.4.0'), ('v03', 'v04'), ('V0.3', 'V0.4')]:
+              windows = windows.replace(old, new)
+          windows_path.write_text(windows, encoding='utf-8')
+
+          old_release_path = root / '.github/workflows/release-v0.3.0.yml'
+          release = old_release_path.read_text(encoding='utf-8')
+          release = release.replace('release-v0.3.0', 'release-v0.4.0')
+          release = release.replace('v0.3.0', 'v0.4.0').replace('0.3.0', '0.4.0').replace('V0.3', 'V0.4').replace('v0.3', 'v0.4')
+          needle = '''          cargo +1.98.1 test -p harnesscope-core -p harnesscope-parity
+          cargo +1.98.1 clippy -p harnesscope-tauri --all-targets -- -D warnings'''
+          replacement = '''          cargo +1.98.1 test -p harnesscope-core -p harnesscope-parity
+          cargo +1.98.1 clippy -p harnesscope-collector-sdk --all-targets -- -D warnings
+          cargo +1.98.1 test -p harnesscope-collector-sdk
+          cargo +1.98.1 clippy -p harnesscope-collectors --all-targets -- -D warnings
+          cargo +1.98.1 test -p harnesscope-collectors
+          cargo +1.98.1 clippy -p harnesscope-tauri --all-targets -- -D warnings'''
+          if release.count(needle) != 2:
+              raise SystemExit(f'Expected two native release verification blocks, found {release.count(needle)}')
+          release = release.replace(needle, replacement)
+          (root / '.github/workflows/release-v0.4.0.yml').write_text(release, encoding='utf-8')
+          old_release_path.unlink()
+
+          tauri_readme_path = root / 'apps/tauri/README.md'
+          tauri_readme = tauri_readme_path.read_text(encoding='utf-8')
+          for old, new in [('v0.3.0', 'v0.4.0'), ('0.3.0', '0.4.0'), ('v0.3', 'v0.4')]:
+              tauri_readme = tauri_readme.replace(old, new)
+          collector_note = '''\n## Collector SDK v1 in the Tauri runtime\n\nHarnessScope v0.4 keeps collector execution behind the same explicit desktop command allowlist. The Tauri host owns the first-party Rust collector runtime directly; the shared renderer receives only versioned `collectorList`, `collectorDescribe`, `collectorStart`, `collectorStop`, and `collectorStatus` actions. Collector failures stay instance-scoped and never grant raw process, filesystem, shell, or SQLite handles to renderer code.\n\nFirst-party v0.4 collectors are available on macOS and Linux for owned process lifecycle/metadata plus explicitly selected file metadata. Linux remains a CLI/source collector target rather than a desktop release target. File content capture, privilege escalation, process-memory scraping, injection, and security-control bypass are unsupported.\n'''
+          marker = '\n## Electron fallback\n'
+          if collector_note.strip() not in tauri_readme:
+              if marker not in tauri_readme:
+                  raise SystemExit('Tauri README insertion marker missing')
+              tauri_readme = tauri_readme.replace(marker, collector_note + marker, 1)
+          tauri_readme_path.write_text(tauri_readme, encoding='utf-8')
+
+          readme_path = root / 'README.md'
+          readme = readme_path.read_text(encoding='utf-8')
+          for old, new in [('v0.3.0', 'v0.4.0'), ('0.3.0', '0.4.0'), ('V0.3', 'V0.4'), ('v0.3', 'v0.4')]:
+              readme = readme.replace(old, new)
+          old_bullet = '- Rust `harnesscope-core` with Node/Rust semantic parity fixtures;\n'
+          new_bullets = old_bullet + '- Collector SDK v1 with a strict versioned NDJSON manifest/start/envelope contract;\n- isolated external collector hosting with bounded queues and redaction before persistence;\n- first-party macOS/Linux owned-process and explicit-path metadata collectors;\n'
+          if '- Collector SDK v1 with a strict versioned NDJSON' not in readme:
+              if old_bullet not in readme:
+                  raise SystemExit('README collector bullet insertion marker missing')
+              readme = readme.replace(old_bullet, new_bullets, 1)
+
+          collector_section = '''## Collector SDK v1 and native collectors\n\nV0.4 adds a versioned Collector SDK whose protocol version is exactly `1`. External collectors are launched only after explicit user selection, communicate over newline-delimited JSON on stdout, and use stderr only for human-readable diagnostics. The host validates the manifest handshake, strictly increasing sequence numbers, the 262144-byte line bound, requested capabilities, and the 256-envelope bounded queue before evidence reaches the existing redaction/persistence path.\n\nBuild the first-party sidecar from source:\n\n```bash\nnpm run collector:build\n```\n\nDiscover and run collectors from the portable CLI:\n\n```bash\nnode bin/harnesscope.mjs --db ./lab/workspace.sqlite collector list\nnode bin/harnesscope.mjs --db ./lab/workspace.sqlite collector describe harnesscope.linux.process-files\nnode bin/harnesscope.mjs --db ./lab/workspace.sqlite \\\n  collector run harnesscope.linux.process-files \\\n  --session <SESSION> --path ./authorized-dir -- <target-command>\n```\n\nOn macOS, process metadata visibility can be limited by normal platform permissions; HarnessScope reports visibility diagnostics rather than escalating privileges or disabling SIP/Gatekeeper. On Linux, process observation depends on the visibility provided by `/proc`, while file metadata watching uses the platform watcher backend (normally inotify through `notify`); permission/inotify-limit failures are reported rather than bypassed. Selected file paths are explicit, canonicalized scope boundaries, file capture is metadata-only, and optional hashing reads only regular files that remain inside authorized scope.\n\nHarnessScope does not provide authentication bypass, TLS-pinning bypass, process-memory scraping, code injection, protected-source extraction, or security-control disabling. The preferred Windows/macOS desktop remains Tauri; Electron is retained as a compatibility fallback. See [`docs/collector-sdk-v1.md`](docs/collector-sdk-v1.md) for the exact wire contract.\n\n'''
+          quick_marker = '## Portable Node CLI quick start\n'
+          if '## Collector SDK v1 and native collectors\n' not in readme:
+              if quick_marker not in readme:
+                  raise SystemExit('README collector section marker missing')
+              readme = readme.replace(quick_marker, collector_section + quick_marker, 1)
+
+          readme = readme.replace(
+              'cargo clippy -p harnesscope-core -p harnesscope-parity --all-targets -- -D warnings\ncargo test -p harnesscope-core -p harnesscope-parity',
+              'cargo clippy -p harnesscope-core -p harnesscope-parity -p harnesscope-collector-sdk -p harnesscope-collectors --all-targets -- -D warnings\ncargo test -p harnesscope-core -p harnesscope-parity -p harnesscope-collector-sdk -p harnesscope-collectors'
+          )
+          readme = readme.replace(
+              'CI runs Node tests on Ubuntu, Windows and macOS, Rust core/parity checks on all three platforms, explicit semantic parity, and native Tauri package gates on Windows and macOS.',
+              'CI runs Node tests on Ubuntu, Windows and macOS, Rust core/parity checks on all three platforms, dedicated Linux/macOS native collector gates, explicit semantic parity, and native Tauri package gates on Windows and macOS.'
+          )
+          readme = readme.replace(
+              'crates/harnesscope-parity/ Node/Rust parity transport\n',
+              'crates/harnesscope-parity/ Node/Rust parity transport\ncrates/harnesscope-collector-sdk/ versioned Collector Protocol/SDK v1\ncrates/harnesscope-collectors/ first-party native collector runtime\n'
+          )
+          readme = readme.replace(
+              'src/core/              Node redaction, store, inference, compare, exporter\n',
+              'src/core/              Node redaction, store, inference, compare, exporter\nsrc/collectors/        Node collector protocol, registry, host, sidecar resolver\n'
+          )
+          readme_path.write_text(readme, encoding='utf-8')
+
+          collector_doc = '''# HarnessScope Collector SDK v1\n\nCollector SDK v1 is a clean-room, versioned, newline-delimited JSON protocol for explicitly selected HarnessScope evidence collectors. The protocol version string is exactly `"1"`. External collector stdout is protocol-only; human-readable logs belong on stderr. The host treats all collector output as untrusted and validates it before redaction and persistence.\n\n## Safety and scope\n\nCollectors run only after explicit user selection. First-party v0.4 collectors observe owned process lifecycle/metadata and file metadata under explicitly selected directories. File content capture, privilege escalation, authentication/TLS-pinning bypass, process-memory scraping, injection, protected-source extraction, and disabling platform security controls are unsupported.\n\n## Manifest handshake\n\nThe first stdout line from a collector is its manifest:\n\n```json\n{"sdkVersion":"1","id":"harnesscope.linux.process-files","name":"HarnessScope Linux Process + Files","version":"0.4.0","platforms":["linux"],"capabilities":["process.lifecycle","process.metadata","file.metadata","collector.diagnostics"],"requiresExplicitPaths":true,"requiresTargetLaunch":true,"contentCapture":"unsupported"}\n```\n\nCollector IDs use a reverse-DNS-style shape. `sdkVersion` must be exactly `"1"`; `contentCapture` is exactly `"unsupported"` in v0.4.\n\n## Start request\n\nHarnessScope writes exactly one start request NDJSON line to stdin when starting the first-party sidecar:\n\n```json\n{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","requestedCapabilities":["process.lifecycle","process.metadata","file.metadata","collector.diagnostics"],"paths":["/home/user/authorized-project"],"hashFiles":false,"target":{"executable":"/usr/bin/node","args":["fixtures/collectors/synthetic-target.mjs"],"cwd":"/home/user/HarnessScope"}}\n```\n\n`paths` are explicit selected directories. Requested capabilities must be a subset of the manifest capabilities. `target` is an owned launch target, not an arbitrary attach request.\n\n## Event envelope\n\nAfter the manifest handshake, each stdout line is one envelope. Sequence numbers must strictly increase per collector instance.\n\n```json\n{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":1,"kind":"event","event":{"source":"collector","kind":"ProcessStarted","correlationId":"pid:1234","data":{"pid":1234}}}\n```\n\nA diagnostic envelope carries only `diagnostic`:\n\n```json\n{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":2,"kind":"diagnostic","diagnostic":{"code":"PROCESS_VISIBILITY_LIMITED","message":"Some process metadata was not visible to the current user."}}\n```\n\nHeartbeat and completed envelopes carry neither `event` nor `diagnostic`:\n\n```json\n{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":3,"kind":"heartbeat"}\n{"sdkVersion":"1","collectorId":"harnesscope.linux.process-files","instanceId":"instance-123","sequence":4,"kind":"completed"}\n```\n\nEvery serialized protocol line must be at most 262144 bytes. The host queue is bounded to 256 pending envelopes.\n\n## Stop control\n\nThe first-party sidecar accepts the following stdin control line after start:\n\n```json\n{"kind":"stop"}\n```\n\nEOF also requests graceful stop. Collector human diagnostics stay on stderr and are never interpreted as evidence.\n\n## Host error codes\n\n- `COLLECTOR_INVALID_CONFIG` — malformed host/start configuration.\n- `COLLECTOR_START_FAILED` — the selected collector process could not be started or its start request could not be written.\n- `COLLECTOR_PROTOCOL_ERROR` — malformed manifest/envelope, wrong instance/collector identity, invalid envelope shape, or oversized line.\n- `COLLECTOR_SEQUENCE_ERROR` — duplicate or non-increasing envelope sequence.\n- `COLLECTOR_CAPABILITY_DENIED` — a requested capability is not declared by the manifest.\n- `COLLECTOR_BACKPRESSURE` — the bounded 256-envelope host queue overflowed; the owned collector instance is failed closed.\n- `COLLECTOR_RUNTIME_FAILED` — the collector exited/faulted without a valid completed lifecycle.\n- `COLLECTOR_NOT_FOUND` — the requested first-party sidecar executable could not be resolved; build it with `npm run collector:build` or set the explicit supported override.\n\n## Platform behavior\n\n### macOS\n\nProcess fields are limited to metadata visible through supported OS APIs. Missing visibility produces structured diagnostics; HarnessScope does not escalate privileges or disable SIP/Gatekeeper. File observation remains inside canonicalized explicit roots and is metadata-only.\n\n### Linux\n\nProcess visibility depends on the current user's `/proc` access. File metadata events use the native watcher backend (normally inotify through the Rust `notify` crate); kernel watcher limits or permission failures are reported. HarnessScope does not change sysctls, bypass SELinux/AppArmor, or escalate privileges.\n'''
+          (root / 'docs/collector-sdk-v1.md').write_text(collector_doc, encoding='utf-8')
+          PY
+      - name: Regenerate Node and Rust lock metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          cargo +1.98.1 check -p harnesscope-core -p harnesscope-parity -p harnesscope-collector-sdk -p harnesscope-collectors
+          npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify full v0.4 portable regression
+        shell: bash
+        env:
+          HARNESSCOPE_RUST_PARITY: "1"
+          NODE_NO_WARNINGS: "1"
+        run: |
+          set -euo pipefail
+          npm test
+          cargo +1.98.1 fmt --all -- --check
+          cargo +1.98.1 clippy -p harnesscope-core -p harnesscope-parity -p harnesscope-collector-sdk -p harnesscope-collectors --all-targets -- -D warnings
+          cargo +1.98.1 test -p harnesscope-core -p harnesscope-parity -p harnesscope-collector-sdk -p harnesscope-collectors
+          node scripts/run-parity.mjs
+      - name: Commit production v0.4 release preparation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/prepare-v0.4.0.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m "release: prepare HarnessScope v0.4.0"
+          git push origin HEAD:feature/v0.4-collector-sdk-native-collectors
