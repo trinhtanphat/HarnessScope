@@ -31,8 +31,20 @@ fn launch_captures_only_structured_stdout_and_drains_pipes_before_return() {
     assert_eq!(events.first().unwrap().kind, "ProcessStarted");
     assert_eq!(events.last().unwrap().kind, "ProcessExited");
     assert_eq!(result.events_captured, events.len());
-    assert_eq!(events.iter().filter(|event| event.kind == "SkillRead").count(), 1);
-    assert_eq!(events.iter().filter(|event| event.kind == "CompactionMarker").count(), 1);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event.kind == "SkillRead")
+            .count(),
+        1
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event.kind == "CompactionMarker")
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -68,7 +80,11 @@ console.log('HARNESSCOPE_EVENT ' + JSON.stringify({kind:'ToolCall',correlationId
             && event.data["diagnostic"]
                 == "Malformed HARNESSCOPE_EVENT marker omitted from persistence."
     }));
-    assert!(events.iter().any(|event| event.kind == "ToolCall" && event.data["name"] == "tail"));
+    assert!(
+        events
+            .iter()
+            .any(|event| event.kind == "ToolCall" && event.data["name"] == "tail")
+    );
     let persisted = serde_json::to_string(&events).unwrap();
     assert!(!persisted.contains("ordinary-secret-output"));
     assert!(!persisted.contains("stderr-secret-output"));
@@ -109,7 +125,11 @@ fn file_watch_records_metadata_only_for_new_or_changed_files() {
         .filter(|event| event.kind == "FileWritten")
         .collect::<Vec<_>>();
     assert!(!writes.is_empty());
-    assert!(writes.iter().all(|event| event.data["contentCaptured"] == false));
+    assert!(
+        writes
+            .iter()
+            .all(|event| event.data["contentCaptured"] == false)
+    );
     let persisted = serde_json::to_string(&writes).unwrap();
     assert!(!persisted.contains("file-secret-content-must-not-persist"));
 }
