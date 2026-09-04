@@ -67,12 +67,14 @@ await app.whenReady();
 
 const dbPath = defaultWorkspacePath(app.getPath('userData'));
 const workspaceLease = acquireWorkspaceLock(dbPath, { runtime: 'electron-desktop' });
+let services = null;
 app.on('before-quit', () => {
+  if (services?.collectorShutdown) void services.collectorShutdown();
   workspaceLease.release();
 });
 
 try {
-  const services = createDesktopServices({
+  services = createDesktopServices({
     dbPath,
     dialogs: nativeDialogs(),
     appInfo: { name: app.getName(), version: app.getVersion() },

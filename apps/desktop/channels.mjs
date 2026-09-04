@@ -11,6 +11,11 @@ export const CHANNELS = Object.freeze({
   IMPORT_JSONL: 'hs:v1:import:jsonl',
   LAUNCH_RUN: 'hs:v1:launch:run',
   EXPORT_RUN: 'hs:v1:export:run',
+  COLLECTOR_LIST: 'hs:v1:collector:list',
+  COLLECTOR_DESCRIBE: 'hs:v1:collector:describe',
+  COLLECTOR_START: 'hs:v1:collector:start',
+  COLLECTOR_STOP: 'hs:v1:collector:stop',
+  COLLECTOR_STATUS: 'hs:v1:collector:status',
   DIALOG_PICK_DIRECTORY: 'hs:v1:dialog:pick-directory',
   DIALOG_PICK_FILE: 'hs:v1:dialog:pick-file'
 });

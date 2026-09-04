@@ -1,7 +1,7 @@
 use crate::{
     CompareResult, CoreError, ExportResult, LaunchRequest, LaunchResult, Session, SessionSnapshot,
-    Workspace, WorkspaceLock, compare_sessions, export_session, import_har, import_jsonl,
-    import_procmon, infer_findings, launch_target,
+    TraceEvent, TraceEventInput, Workspace, WorkspaceLock, compare_sessions, export_session,
+    import_har, import_jsonl, import_procmon, infer_findings, launch_target,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, fmt, path::Path, path::PathBuf};
@@ -227,6 +227,15 @@ impl AppServices {
             CoreError::InvalidArgument => CoreError::InvalidArgument,
             _ => CoreError::LaunchFailed,
         })
+    }
+
+    pub fn collector_append_event(
+        &self,
+        session_id: &str,
+        input: TraceEventInput,
+    ) -> Result<TraceEvent, CoreError> {
+        self.require_session(session_id)?;
+        self.workspace.append_event(session_id, input)
     }
 
     pub fn export_run(

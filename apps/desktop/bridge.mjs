@@ -19,6 +19,13 @@ export function createBridge(invoke) {
     }),
     launch: Object.freeze({ run: (sessionId, request) => invoke(CHANNELS.LAUNCH_RUN, sessionId, request) }),
     export: Object.freeze({ run: (sessionId) => invoke(CHANNELS.EXPORT_RUN, sessionId) }),
+    collector: Object.freeze({
+      list: () => invoke(CHANNELS.COLLECTOR_LIST),
+      describe: (collectorId) => invoke(CHANNELS.COLLECTOR_DESCRIBE, collectorId),
+      start: (sessionId, request) => invoke(CHANNELS.COLLECTOR_START, sessionId, request),
+      stop: (instanceId) => invoke(CHANNELS.COLLECTOR_STOP, instanceId),
+      status: (instanceId) => invoke(CHANNELS.COLLECTOR_STATUS, instanceId)
+    }),
     dialog: Object.freeze({
       pickDirectory: () => invoke(CHANNELS.DIALOG_PICK_DIRECTORY),
       pickFile: (filters) => invoke(CHANNELS.DIALOG_PICK_FILE, filters)

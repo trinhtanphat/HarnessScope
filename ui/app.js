@@ -2,7 +2,10 @@ import { createDataClient } from './data-client.js';
 
 const $ = (q) => document.querySelector(q);
 const client = createDataClient({ bridge: globalThis.harnesscope ?? null, fetchImpl: globalThis.fetch?.bind(globalThis) });
-const state = { sessions:[], selected:null, detail:null, tab:'trace', filter:'', busy:false, appInfo:null };
+const state = {
+  sessions:[], selected:null, detail:null, tab:'trace', filter:'', busy:false, appInfo:null,
+  collector:{ manifests:[], selectedId:null, instanceId:null, status:'unavailable', diagnostics:[] }
+};
 let toastTimer = null;
 
 function escapeHtml(value='') { return String(value).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -70,6 +73,7 @@ async function runOperation(label, fn, { refresh=false, success=null }={}) {
   } finally {
     setBusy(false);
     renderNativeState();
+    renderCollector();
   }
 }
 
@@ -105,6 +109,26 @@ function renderTabs(){
   $('#specView').classList.toggle('hidden',!state.detail||state.tab!=='spec');
   $('#emptyState').classList.toggle('hidden',!!state.detail);
 }
+function renderCollector(){
+  const collector=state.collector;
+  const select=$('#collector-select');
+  const selected=collector.manifests.find((manifest)=>manifest.id===collector.selectedId) || collector.manifests[0] || null;
+  if(selected && !collector.selectedId)collector.selectedId=selected.id;
+  select.innerHTML=collector.manifests.map((manifest)=>`<option value="${escapeHtml(manifest.id)}" ${manifest.id===collector.selectedId?'selected':''}>${escapeHtml(manifest.name || manifest.id)}${manifest.available===false?' · unavailable':''}</option>`).join('') || '<option value="">No native collector on this platform</option>';
+  const active=collector.status==='starting'||collector.status==='running'||collector.status==='stopping';
+  $('#collector-status').textContent=collector.status;
+  $('#collector-status').dataset.status=collector.status;
+  $('#collector-capabilities').innerHTML=selected?.capabilities?.map((capability)=>`<span>${escapeHtml(capability)}</span>`).join('') || '<span>Native collector unavailable</span>';
+  $('#collector-diagnostics').textContent=collector.diagnostics.length
+    ? collector.diagnostics.map((diagnostic)=>`${diagnostic.code}: ${diagnostic.message}`).join(' · ')
+    : 'No collector diagnostics.';
+  $('#collector-start').disabled=state.busy||client.mode!=='desktop'||!state.selected||!selected||selected.available===false||active;
+  $('#collector-stop').disabled=state.busy||client.mode!=='desktop'||!collector.instanceId||!active;
+  ['collector-select','collector-target','collector-paths','collector-hash-files'].forEach((id)=>{
+    const control=$(`#${id}`);
+    control.disabled=state.busy||client.mode!=='desktop'||active;
+  });
+}
 function renderNativeState(){
   const desktop=client.mode==='desktop';
   const selected=!!state.selected;
@@ -114,9 +138,9 @@ function renderNativeState(){
   ['importBtn','launchBtn','compareBtn','exportBtn'].forEach((id)=>{$(`#${id}`).disabled=state.busy||!desktop||!selected;});
   $('#inferBtn').disabled=state.busy||!selected;
   $('#importType').disabled=state.busy||!desktop||!selected;
-  $('.sidebar-foot').title=desktop?'Electron userData workspace':'Local browser workspace';
+  $('.sidebar-foot').title=desktop?'Desktop local workspace':'Local browser workspace';
 }
-function render(){renderSessions();renderFilter();renderTrace();renderFindings();renderTabs();renderNativeState();}
+function render(){renderSessions();renderFilter();renderTrace();renderFindings();renderTabs();renderNativeState();renderCollector();}
 
 async function selectSession(id){
   if(state.busy)return;
@@ -149,6 +173,7 @@ function populateCompareSelects(){
 $('.tabs').onclick=(e)=>{const t=e.target.closest('.tab');if(!t)return;state.tab=t.dataset.tab;renderTabs();};
 $('#kindFilter').onchange=(e)=>{state.filter=e.target.value;renderTrace();};
 $('#closeInspector').onclick=()=>$('.app-shell').classList.remove('inspecting');
+$('#collector-select').onchange=(event)=>{state.collector.selectedId=event.target.value;renderCollector();};
 
 document.querySelectorAll('[data-dialog-close]').forEach((button)=>button.onclick=()=>dialogClose(button.dataset.dialogClose));
 
@@ -211,8 +236,52 @@ $('#compareForm').onsubmit=(event)=>{
 
 $('#exportBtn').onclick=()=>runOperation('Exporting clean-room spec…',()=>client.exportSession(state.selected),{success:'Behavioral spec exported.'});
 
+$('#collector-start').onclick=()=>runOperation('Starting collector…',async()=>{
+  const selected=state.collector.manifests.find((manifest)=>manifest.id===$('#collector-select').value);
+  if(!selected)throw new Error('No collector is available on this platform.');
+  const target=$('#collector-target').value.trim();
+  if(!target)throw new Error('Choose a target executable.');
+  const paths=$('#collector-paths').value.split(/\r?\n/).map((value)=>value.trim()).filter(Boolean);
+  const result=await client.collector.start(state.selected,{
+    collectorId:selected.id,
+    paths,
+    hashFiles:$('#collector-hash-files').checked,
+    target:{executable:target,args:[]}
+  });
+  state.collector.instanceId=result.instanceId;
+  state.collector.status=result.status;
+  state.collector.diagnostics=result.diagnostics||[];
+  return result;
+},{success:'Collector started.'});
+
+$('#collector-stop').onclick=()=>runOperation('Stopping collector…',async()=>{
+  const result=await client.collector.stop(state.collector.instanceId);
+  state.collector.status=result.status;
+  state.collector.diagnostics=result.diagnostics||[];
+  if(state.selected)state.detail=await client.getTimeline(state.selected);
+  renderTrace();
+  return result;
+},{success:'Collector stopped.'});
+
+async function loadCollectors(){
+  if(client.mode!=='desktop'){
+    state.collector={manifests:[],selectedId:null,instanceId:null,status:'unavailable',diagnostics:[]};
+    return;
+  }
+  try{
+    const manifests=await client.collector.list();
+    state.collector.manifests=Array.isArray(manifests)?manifests:[];
+    state.collector.selectedId=state.collector.manifests[0]?.id??null;
+    state.collector.status=state.collector.manifests.length?'registered':'unavailable';
+  }catch(error){
+    state.collector.status='failed';
+    state.collector.diagnostics=[{code:error?.code||'COLLECTOR_LIST_FAILED',message:safeError(error)}];
+  }
+}
+
 async function initialize(){
   try{state.appInfo=await client.appInfo();}catch{state.appInfo={platform:client.mode,version:null};}
+  await loadCollectors();
   try{
     state.sessions=await client.listSessions();
     render();

@@ -40,7 +40,7 @@ function detectedBridge() {
 }
 
 export function createDataClient({ bridge = undefined, fetchImpl = globalThis.fetch?.bind(globalThis) } = {}) {
-  const selectedBridge = bridge === undefined ? detectedBridge() : bridge;
+  const selectedBridge = bridge == null ? detectedBridge() : bridge;
   const desktop = !!selectedBridge;
   const mode = desktop ? 'desktop' : 'browser';
   const invoke = async (fn) => unwrap(await fn());
@@ -70,6 +70,13 @@ export function createDataClient({ bridge = undefined, fetchImpl = globalThis.fe
       return invoke(() => operation(sessionId));
     }),
     launch: native((sessionId, requestValue) => invoke(() => selectedBridge.launch.run(sessionId, requestValue))),
-    exportSession: native((sessionId) => invoke(() => selectedBridge.export.run(sessionId)))
+    exportSession: native((sessionId) => invoke(() => selectedBridge.export.run(sessionId))),
+    collector: Object.freeze({
+      list: native(() => invoke(() => selectedBridge.collector.list())),
+      describe: native((collectorId) => invoke(() => selectedBridge.collector.describe(collectorId))),
+      start: native((sessionId, requestValue) => invoke(() => selectedBridge.collector.start(sessionId, requestValue))),
+      stop: native((instanceId) => invoke(() => selectedBridge.collector.stop(instanceId))),
+      status: native((instanceId) => invoke(() => selectedBridge.collector.status(instanceId)))
+    })
   });
 }

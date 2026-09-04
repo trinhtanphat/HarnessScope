@@ -15,6 +15,11 @@ export function registerIpcHandlers({ ipcMain, services }) {
     [CHANNELS.IMPORT_JSONL, (sessionId) => services.importJsonl(sessionId)],
     [CHANNELS.LAUNCH_RUN, (sessionId, request) => services.launchRun(sessionId, request)],
     [CHANNELS.EXPORT_RUN, (sessionId) => services.exportRun(sessionId)],
+    [CHANNELS.COLLECTOR_LIST, () => services.collectorList()],
+    [CHANNELS.COLLECTOR_DESCRIBE, (collectorId) => services.collectorDescribe(collectorId)],
+    [CHANNELS.COLLECTOR_START, (sessionId, request) => services.collectorStart(sessionId, request)],
+    [CHANNELS.COLLECTOR_STOP, (instanceId) => services.collectorStop(instanceId)],
+    [CHANNELS.COLLECTOR_STATUS, (instanceId) => services.collectorStatus(instanceId)],
     [CHANNELS.DIALOG_PICK_DIRECTORY, () => services.pickDirectory()],
     [CHANNELS.DIALOG_PICK_FILE, (filters) => services.pickFile(filters)]
   ]);

@@ -47,6 +47,26 @@
           <div><div class="eyebrow" id="modeLabel"></div><h1 id="sessionTitle"></h1></div>
           <div id="traceSummary" class="summary-pill"></div>
         </div>
+
+        <section id="collector-panel" class="collector-panel" aria-label="Collector controls">
+          <div class="collector-head">
+            <div><div class="eyebrow">COLLECTOR SDK V1</div><h2>Native metadata collector</h2></div>
+            <span id="collector-status" class="collector-status">unavailable</span>
+          </div>
+          <div class="collector-grid">
+            <label>Collector<select id="collector-select" class="field" data-native="true"></select></label>
+            <label>Target executable<input id="collector-target" class="field mono" maxlength="4096" placeholder="node" data-native="true" /></label>
+            <label class="collector-paths">Selected paths <span class="label-help">one explicit directory per line</span><textarea id="collector-paths" class="field mono" rows="3" placeholder="/path/to/authorized/workspace" data-native="true"></textarea></label>
+            <label class="collector-hash"><input id="collector-hash-files" type="checkbox" data-native="true" /> Hash readable files (metadata only)</label>
+          </div>
+          <div id="collector-capabilities" class="collector-capabilities"></div>
+          <div id="collector-diagnostics" class="collector-diagnostics muted">No collector diagnostics.</div>
+          <div class="collector-actions">
+            <button id="collector-start" class="button primary" data-operation data-native="true">Start collector</button>
+            <button id="collector-stop" class="button" data-operation data-native="true" disabled>Stop collector</button>
+          </div>
+        </section>
+
         <div id="traceGroups" class="trace-groups"></div>
       </section>
 

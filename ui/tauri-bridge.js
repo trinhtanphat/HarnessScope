@@ -69,6 +69,13 @@ export function createTauriBridge(tauri) {
         return call('export_run', { sessionId, outDir:selected });
       }
     }),
+    collector: Object.freeze({
+      list: () => call('collector_list'),
+      describe: (collectorId) => call('collector_describe', { collectorId }),
+      start: (sessionId, request) => call('collector_start', { sessionId, request }),
+      stop: (instanceId) => call('collector_stop', { instanceId }),
+      status: (instanceId) => call('collector_status', { instanceId })
+    }),
     dialog: Object.freeze({
       pickDirectory,
       pickFile

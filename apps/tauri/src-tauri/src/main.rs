@@ -38,6 +38,11 @@ fn main() {
             commands::import_jsonl,
             commands::launch_run,
             commands::export_run,
+            commands::collector_list,
+            commands::collector_describe,
+            commands::collector_start,
+            commands::collector_stop,
+            commands::collector_status,
             commands::dialog_pick_directory,
             commands::dialog_pick_file,
         ])

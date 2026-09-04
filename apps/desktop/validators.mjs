@@ -12,9 +12,23 @@ function boundedString(value, { code, label, min = 1, max }) {
   return trimmed;
 }
 
+function boundedArgs(args, code) {
+  if (!Array.isArray(args) || args.length > 64 || args.some((arg) => typeof arg !== 'string' || arg.length > 8192)) {
+    throw new DesktopError(code, 'Collector target arguments are invalid.');
+  }
+  return [...args];
+}
+
 export function assertSessionId(value) {
   if (typeof value !== 'string' || !UUID.test(value)) {
     throw new DesktopError('INVALID_SESSION_ID', 'The session id is invalid.');
+  }
+  return value;
+}
+
+export function assertCollectorInstanceId(value) {
+  if (typeof value !== 'string' || !UUID.test(value)) {
+    throw new DesktopError('INVALID_COLLECTOR_INSTANCE', 'The collector instance id is invalid.');
   }
   return value;
 }
@@ -45,6 +59,53 @@ export function validateLaunchRequest(input) {
     result.cwd = boundedString(input.cwd, { code: 'INVALID_LAUNCH_REQUEST', label: 'Working directory', max: 4096 });
   }
   return result;
+}
+
+export function validateCollectorStartRequest(input) {
+  const code = 'INVALID_COLLECTOR_REQUEST';
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new DesktopError(code, 'Collector request is invalid.');
+  }
+
+  let collectorId = null;
+  if (input.collectorId !== undefined && input.collectorId !== null && input.collectorId !== '') {
+    collectorId = boundedString(input.collectorId, { code, label: 'Collector id', max: 200 });
+  }
+
+  let command = null;
+  if (input.command !== undefined && input.command !== null && input.command !== '') {
+    command = boundedString(input.command, { code, label: 'Collector command', max: 4096 });
+  }
+  if (!collectorId && !command) {
+    throw new DesktopError(code, 'Choose a first-party collector or an explicit collector command.');
+  }
+
+  const paths = input.paths ?? [];
+  if (!Array.isArray(paths) || paths.length > 32 || paths.some((path) => typeof path !== 'string')) {
+    throw new DesktopError(code, 'Collector paths are invalid.');
+  }
+  const normalizedPaths = paths.map((path) => boundedString(path, { code, label: 'Collector path', max: 4096 }));
+
+  if (!input.target || typeof input.target !== 'object' || Array.isArray(input.target)) {
+    throw new DesktopError(code, 'Collector target is invalid.');
+  }
+  const executable = boundedString(input.target.executable, { code, label: 'Collector target', max: 4096 });
+  const target = { executable, args: boundedArgs(input.target.args ?? [], code) };
+  if (input.target.cwd !== undefined && input.target.cwd !== null && input.target.cwd !== '') {
+    target.cwd = boundedString(input.target.cwd, { code, label: 'Collector working directory', max: 4096 });
+  }
+
+  if (input.hashFiles !== undefined && typeof input.hashFiles !== 'boolean') {
+    throw new DesktopError(code, 'hashFiles must be boolean.');
+  }
+
+  return {
+    collectorId,
+    command,
+    paths: normalizedPaths,
+    hashFiles: input.hashFiles === true,
+    target
+  };
 }
 
 export function validateDialogFilters(filters) {
