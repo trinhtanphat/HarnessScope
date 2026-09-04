@@ -1,0 +1,207 @@
+name: release-v0.2.0
+
+on:
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  package-windows:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: windows-latest
+    env:
+      VERSION: v0.2.0
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact triggering SHA and package version
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $env:TARGET_SHA) { throw "Checkout SHA $actual does not match triggering SHA $env:TARGET_SHA" }
+          $version = node -p "require('./package.json').version"
+          if ($version -ne '0.2.0') { throw "Expected package version 0.2.0, got $version" }
+      - name: Install desktop dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test before release packaging
+        run: npm test
+        env:
+          NODE_NO_WARNINGS: "1"
+      - name: Build Windows packages
+        run: npm run desktop:win
+      - name: Validate Windows release assets
+        shell: pwsh
+        run: |
+          $required = @(
+            'dist/desktop/HarnessScope-0.2.0-Setup.exe',
+            'dist/desktop/HarnessScope-0.2.0-windows-portable.zip'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path)) { throw "Missing required asset: $path" }
+            if ((Get-Item -LiteralPath $path).Length -le 0) { throw "Empty required asset: $path" }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-v0.2.0
+          path: |
+            dist/desktop/HarnessScope-0.2.0-Setup.exe
+            dist/desktop/HarnessScope-0.2.0-windows-portable.zip
+          if-no-files-found: error
+
+  package-macos:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: macos-latest
+    env:
+      VERSION: v0.2.0
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact triggering SHA and package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(node -p "require('./package.json').version")" = "0.2.0"
+      - name: Install desktop dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test before release packaging
+        run: npm test
+        env:
+          NODE_NO_WARNINGS: "1"
+      - name: Build unsigned universal macOS packages
+        run: npm run desktop:mac
+      - name: Normalize and validate macOS release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/desktop/HarnessScope-0.2.0-macos-universal.dmg
+          test -s dist/desktop/HarnessScope-0.2.0-macos-universal.zip
+          mv dist/desktop/HarnessScope-0.2.0-macos-universal.zip \
+             dist/desktop/HarnessScope-0.2.0-macos-universal.app.zip
+          test -s dist/desktop/HarnessScope-0.2.0-macos-universal.app.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-v0.2.0
+          path: |
+            dist/desktop/HarnessScope-0.2.0-macos-universal.dmg
+            dist/desktop/HarnessScope-0.2.0-macos-universal.app.zip
+          if-no-files-found: error
+
+  release:
+    needs: [package-windows, package-macos]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: v0.2.0
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+      - name: Verify exact triggering SHA and package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(node -p "require('./package.json').version")" = "0.2.0"
+      - name: Guard existing v0.2.0 tag
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+            tag_sha="$(git rev-list -n 1 "$VERSION")"
+            if [ "$tag_sha" != "$TARGET_SHA" ]; then
+              echo "Existing $VERSION points to $tag_sha, expected $TARGET_SHA" >&2
+              exit 1
+            fi
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.guard.outputs.exists == 'false'
+        with:
+          name: release-windows-v0.2.0
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        if: steps.guard.outputs.exists == 'false'
+        with:
+          name: release-macos-v0.2.0
+          path: release-assets
+      - name: Build source archive, validate exact assets, and write checksums
+        if: steps.guard.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          git archive --format=zip --prefix=HarnessScope-0.2.0/ "$TARGET_SHA" \
+            -o release-assets/HarnessScope-0.2.0-source.zip
+
+          required=(
+            HarnessScope-0.2.0-Setup.exe
+            HarnessScope-0.2.0-windows-portable.zip
+            HarnessScope-0.2.0-macos-universal.dmg
+            HarnessScope-0.2.0-macos-universal.app.zip
+            HarnessScope-0.2.0-source.zip
+          )
+          for asset in "${required[@]}"; do
+            test -s "release-assets/$asset"
+          done
+          (
+            cd release-assets
+            sha256sum \
+              HarnessScope-0.2.0-Setup.exe \
+              HarnessScope-0.2.0-windows-portable.zip \
+              HarnessScope-0.2.0-macos-universal.dmg \
+              HarnessScope-0.2.0-macos-universal.app.zip \
+              HarnessScope-0.2.0-source.zip \
+              > SHA256SUMS.txt
+          )
+          test -s release-assets/SHA256SUMS.txt
+      - name: Create v0.2.0 tag and GitHub Release
+        if: steps.guard.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$VERSION" \
+            --target "$TARGET_SHA" \
+            --title "HarnessScope v0.2.0" \
+            --notes "HarnessScope v0.2.0 adds the native Electron desktop application for Windows and macOS. Packages are intentionally unsigned in this release. CI rebuilds the exact successful main SHA on native runners before publication." \
+            release-assets/HarnessScope-0.2.0-Setup.exe \
+            release-assets/HarnessScope-0.2.0-windows-portable.zip \
+            release-assets/HarnessScope-0.2.0-macos-universal.dmg \
+            release-assets/HarnessScope-0.2.0-macos-universal.app.zip \
+            release-assets/HarnessScope-0.2.0-source.zip \
+            release-assets/SHA256SUMS.txt
+      - name: Verify existing release path
+        if: steps.guard.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release view "$VERSION" >/dev/null
+          echo "$VERSION already exists at the exact triggering SHA; no conflicting tag was created."

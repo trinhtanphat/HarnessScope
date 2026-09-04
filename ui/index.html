@@ -3,13 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
   <title>HarnessScope</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand"><div class="logo">H</div><div><strong>HarnessScope</strong><span>clean-room inspector</span></div></div>
+      <div class="sidebar-actions"><button id="newSessionBtn" class="button primary" data-operation data-native="true">New session</button></div>
       <div class="section-label">SESSIONS</div>
       <div id="sessions" class="sessions"></div>
       <div class="sidebar-foot"><span class="dot"></span> Local workspace</div>
@@ -20,10 +22,17 @@
         <div class="tabs">
           <button class="tab active" data-tab="trace">Trace</button>
           <button class="tab" data-tab="spec">Spec</button>
+          <span id="platformBadge" class="platform-badge">loading</span>
         </div>
         <div class="top-actions">
+          <span id="busyLabel" class="busy-label"></span>
+          <select id="importType" class="control compact" data-operation data-native="true" aria-label="Evidence type"><option value="har">HAR</option><option value="procmon">Procmon CSV</option><option value="jsonl">JSONL</option></select>
+          <button id="importBtn" class="button" data-operation data-native="true">Import</button>
+          <button id="launchBtn" class="button" data-operation data-native="true">Launch</button>
+          <button id="compareBtn" class="button" data-operation data-native="true">Compare</button>
+          <button id="exportBtn" class="button" data-operation data-native="true">Export</button>
           <select id="kindFilter" class="control"><option value="">All event kinds</option></select>
-          <button id="inferBtn" class="button">Run inference</button>
+          <button id="inferBtn" class="button primary">Run inference</button>
         </div>
       </header>
 
@@ -52,6 +61,38 @@
       <div id="inspectorBody" class="inspector-body"><p class="muted">Select an event or finding.</p></div>
     </aside>
   </div>
-  <script type="module" src="/app.js"></script>
+
+  <dialog id="newSessionDialog" class="modal">
+    <form id="newSessionForm" method="dialog" class="modal-card">
+      <div class="modal-head"><div><span class="eyebrow">WORKSPACE</span><h2>New observation session</h2></div><button type="button" class="icon-button" data-dialog-close="newSessionDialog">×</button></div>
+      <label>Session name<input class="field" name="name" maxlength="120" required placeholder="claude-desktop-baseline" /></label>
+      <label>Mode<select class="field" name="mode"><option value="desktop">Desktop</option><option value="cli">CLI</option><option value="unknown">Unknown</option></select></label>
+      <div class="modal-actions"><button type="button" class="button" data-dialog-close="newSessionDialog">Cancel</button><button class="button primary" type="submit">Create session</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="launchDialog" class="modal">
+    <form id="launchForm" method="dialog" class="modal-card wide">
+      <div class="modal-head"><div><span class="eyebrow">OWNED PROCESS</span><h2>Launch through HarnessScope</h2></div><button type="button" class="icon-button" data-dialog-close="launchDialog">×</button></div>
+      <label>Executable<input class="field mono" name="target" required placeholder="claude" /></label>
+      <label>Arguments <span class="label-help">one argument per line</span><textarea class="field mono" name="args" rows="6" placeholder="--model&#10;sonnet"></textarea></label>
+      <label>Working directory <span class="label-help">optional</span><input class="field mono" name="cwd" placeholder="/path/to/disposable/repo" /></label>
+      <p class="modal-note">Only launch applications and repositories you own or are authorized to inspect.</p>
+      <div class="modal-actions"><button type="button" class="button" data-dialog-close="launchDialog">Cancel</button><button class="button primary" type="submit">Launch & observe</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="compareDialog" class="modal">
+    <form id="compareForm" method="dialog" class="modal-card">
+      <div class="modal-head"><div><span class="eyebrow">SESSION DIFF</span><h2>Compare observations</h2></div><button type="button" class="icon-button" data-dialog-close="compareDialog">×</button></div>
+      <label>Session A<select id="compareA" class="field" name="sessionA" required></select></label>
+      <label>Session B<select id="compareB" class="field" name="sessionB" required></select></label>
+      <div class="modal-actions"><button type="button" class="button" data-dialog-close="compareDialog">Cancel</button><button class="button primary" type="submit">Compare</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./data-client.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

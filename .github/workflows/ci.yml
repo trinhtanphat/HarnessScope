@@ -19,3 +19,70 @@ jobs:
       - run: npm test
         env:
           NODE_NO_WARNINGS: "1"
+
+  desktop-windows:
+    name: desktop-windows
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install desktop dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test before packaging
+        run: npm test
+        env:
+          NODE_NO_WARNINGS: "1"
+      - name: Build Windows desktop packages
+        run: npm run desktop:win
+      - name: Validate Windows artifacts
+        shell: pwsh
+        run: |
+          $required = @(
+            'dist/desktop/HarnessScope-0.2.0-Setup.exe',
+            'dist/desktop/HarnessScope-0.2.0-windows-portable.zip'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path)) { throw "Missing required artifact: $path" }
+            if ((Get-Item -LiteralPath $path).Length -le 0) { throw "Empty required artifact: $path" }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HarnessScope-0.2.0-windows
+          path: |
+            dist/desktop/HarnessScope-0.2.0-Setup.exe
+            dist/desktop/HarnessScope-0.2.0-windows-portable.zip
+          if-no-files-found: error
+
+  desktop-macos:
+    name: desktop-macos
+    needs: test
+    runs-on: macos-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install desktop dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test before packaging
+        run: npm test
+        env:
+          NODE_NO_WARNINGS: "1"
+      - name: Build unsigned universal macOS desktop packages
+        run: npm run desktop:mac
+      - name: Validate macOS artifacts
+        run: |
+          test -s dist/desktop/HarnessScope-0.2.0-macos-universal.dmg
+          test -s dist/desktop/HarnessScope-0.2.0-macos-universal.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HarnessScope-0.2.0-macos
+          path: |
+            dist/desktop/HarnessScope-0.2.0-macos-universal.dmg
+            dist/desktop/HarnessScope-0.2.0-macos-universal.zip
+          if-no-files-found: error

@@ -1,59 +1,84 @@
 # HarnessScope
 
-HarnessScope is a standalone clean-room inspector for coding-agent harness behavior. It helps you collect **authorized evidence** from a CLI or desktop agent session, normalize it into one timeline, infer visible orchestration patterns, compare sessions, and export an implementation-neutral behavioral specification.
+HarnessScope is a standalone clean-room inspector for coding-agent harness behavior. It helps you collect **authorized evidence** from CLI or desktop agent sessions, normalize it into one timeline, infer visible orchestration patterns, compare sessions, and export an implementation-neutral behavioral specification.
 
-It is designed for questions such as:
+HarnessScope does **not** extract a vendor's hidden source code. It records evidence you are authorized to observe and labels derived conclusions as evidence-backed inference.
 
-- Which files or instruction/skill documents were read before execution?
-- Which tool calls and results occurred, and in what order?
-- Was a permission decision observed before a sensitive action?
-- Did the client emit visible context compaction/resume markers?
-- Which state files were written before exit and read after restart?
-- What differs between a CLI session and a desktop session?
+## What it includes
 
-HarnessScope does **not** extract a vendor's hidden source code. It records evidence you are authorized to observe and labels all derived conclusions as evidence-backed inference.
-
-## What V1 includes
-
-- dependency-free Node.js 22 CLI;
+- Node.js 22 portable CLI and browser UI;
 - SQLite workspace database with WAL mode;
 - redaction before persistence;
-- HAR 1.2 importer;
-- Procmon CSV importer;
-- generic JSONL importer with a small YAML field map;
-- owned-process launch observation;
-- metadata-only directory watcher;
-- deterministic harness inference;
-- CLI-vs-Desktop session comparison;
-- clean-room Markdown/JSON/tool-schema export;
-- dark desktop-style local UI with `Trace` / `Spec`, grouped execution traces, filters, event inspector, finding confidence and evidence provenance;
-- synthetic dummy-agent fixtures and automated tests.
+- HAR 1.2, Procmon CSV and generic JSONL importers;
+- owned-process launch observation and metadata-only file watching;
+- deterministic harness inference and CLI-vs-Desktop comparison;
+- Markdown/JSON/tool-schema clean-room export;
+- Electron v0.2 desktop app for Windows and macOS with a sandboxed renderer, context isolation and strict IPC allowlist;
+- synthetic fixtures and automated tests.
 
 ## Clean-room / authorization boundary
 
 Use HarnessScope only on applications, logs, files and environments you own or are authorized to inspect.
 
-V1 intentionally does **not**:
+HarnessScope intentionally does **not** bypass authentication or access controls, defeat TLS certificate pinning, silently install interception certificates, extract passwords/API keys/cookies/bearer tokens, scrape process memory for secrets, decompile protected proprietary source, or disable vendor security controls.
 
-- bypass authentication or access controls;
-- defeat TLS certificate pinning;
-- silently install interception certificates;
-- extract passwords, API keys, cookies or bearer tokens;
-- scrape process memory for secrets;
-- decompile or dump proprietary source from protected binaries;
-- disable vendor security controls.
-
-HAR/Procmon/JSONL are user-supplied evidence. You may use external observability tools under your own authorization, then import their exported artifacts into HarnessScope.
+HAR/Procmon/JSONL are user-supplied evidence. External observability tools may be used under your own authorization and their exported artifacts imported into HarnessScope.
 
 ## Requirements
 
-- Node.js **22+**
-- Windows, macOS or Linux for the portable core/CLI
-- Procmon is optional and Windows-only; HarnessScope consumes its exported CSV rather than requiring kernel privileges itself.
+For the portable CLI/core:
 
-No `npm install` is required for V1.
+- Node.js **22+**;
+- Windows, macOS or Linux;
+- Procmon is optional and Windows-only.
 
-## Quick start
+The portable CLI uses Node built-ins and does not require `npm install` for normal use. Building or running the Electron desktop app from source does require `npm install`.
+
+## Desktop v0.2.0
+
+HarnessScope v0.2.0 adds native Electron packages while preserving the v0.1 CLI, workspace schema, inference and export behavior.
+
+Release assets:
+
+```text
+Windows
+├─ HarnessScope-0.2.0-Setup.exe
+└─ HarnessScope-0.2.0-windows-portable.zip
+
+macOS
+├─ HarnessScope-0.2.0-macos-universal.dmg
+└─ HarnessScope-0.2.0-macos-universal.app.zip
+
+Source / verification
+├─ HarnessScope-0.2.0-source.zip
+└─ SHA256SUMS.txt
+```
+
+### Unsigned package note
+
+The Windows and macOS packages in v0.2.0 are intentionally **unsigned**.
+
+On Windows, Microsoft Defender SmartScreen may warn that the publisher is unknown. Verify the release checksum first, then use the normal SmartScreen **More info → Run anyway** flow only if you trust the downloaded release.
+
+On macOS, Gatekeeper may block the unsigned app on first launch. Verify the release checksum first, then in Finder **Control-click** the HarnessScope app and choose **Open**, followed by **Open** again when macOS asks for confirmation. HarnessScope does not require disabling Gatekeeper or changing system-wide security settings.
+
+### Run desktop from source
+
+```bash
+npm install
+npm run desktop
+```
+
+Build packages locally:
+
+```bash
+npm run desktop:win   # Windows
+npm run desktop:mac   # macOS universal
+```
+
+Electron security defaults in v0.2.0 include `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`, `webSecurity: true`, and `allowRunningInsecureContent: false`. The renderer receives only the versioned `window.harnesscope` bridge; raw `ipcRenderer` is not exposed.
+
+## Portable CLI quick start
 
 ```bash
 node bin/harnesscope.mjs --help
@@ -64,140 +89,55 @@ Create a workspace session:
 ```bash
 node bin/harnesscope.mjs \
   --db ./lab/workspace.sqlite \
-  session new --name claude-cli-baseline --mode cli
+  session new --name agent-cli-baseline --mode cli
 ```
 
-The command returns a session id. Use it below as `<SESSION>`.
-
-### Launch a CLI target
+Launch an owned CLI target:
 
 ```bash
 node bin/harnesscope.mjs \
   --db ./lab/workspace.sqlite \
-  launch --session <SESSION> -- claude
+  launch --session <SESSION> -- <target-command>
 ```
 
-`launch` stores the owned process start/exit. HarnessScope does **not** persist arbitrary stdout/stderr. Repository-owned fixtures can emit explicit `HARNESSCOPE_EVENT ...` lines for deterministic integration testing.
-
-### Import Procmon CSV
+Import evidence:
 
 ```bash
-node bin/harnesscope.mjs \
-  --db ./lab/workspace.sqlite \
-  import procmon --session <SESSION> ./capture/procmon.csv --date 2026-09-04
+node bin/harnesscope.mjs --db ./lab/workspace.sqlite import har --session <SESSION> ./capture/session.har
+node bin/harnesscope.mjs --db ./lab/workspace.sqlite import procmon --session <SESSION> ./capture/procmon.csv --date 2026-09-04
+node bin/harnesscope.mjs --db ./lab/workspace.sqlite import jsonl --session <SESSION> ./capture/events.jsonl --map ./capture/map.yaml
 ```
 
-### Import HAR
+Sensitive headers, cookies, common secret fields and common token patterns are replaced with `[REDACTED]` before events are committed to SQLite.
+
+Infer and export:
 
 ```bash
-node bin/harnesscope.mjs \
-  --db ./lab/workspace.sqlite \
-  import har --session <SESSION> ./capture/session.har
+node bin/harnesscope.mjs --db ./lab/workspace.sqlite infer --session <SESSION>
+node bin/harnesscope.mjs --db ./lab/workspace.sqlite export --session <SESSION> --out ./lab/export
 ```
 
-Sensitive headers, cookies, common secret fields and common token patterns are replaced with `[REDACTED]` before the event is committed to SQLite.
-
-### Import generic JSONL
-
-Mapping file:
-
-```yaml
-timestamp: ts
-kind: event
-correlationId: cid
-data: payload
-source: external-jsonl
-```
-
-Import:
+Compare sessions:
 
 ```bash
-node bin/harnesscope.mjs \
-  --db ./lab/workspace.sqlite \
-  import jsonl --session <SESSION> ./capture/events.jsonl --map ./capture/map.yaml
+node bin/harnesscope.mjs --db ./lab/workspace.sqlite compare <SESSION_A> <SESSION_B>
 ```
 
-### Infer harness behavior
-
-```bash
-node bin/harnesscope.mjs \
-  --db ./lab/workspace.sqlite \
-  infer --session <SESSION>
-```
-
-V1 inference looks for evidence of:
-
-- progressive skill/instruction loading;
-- permission gates;
-- observed tool schemas;
-- inspect/mutate/execute/verify loops;
-- explicit context/compaction/resume markers;
-- session state persisted across process restart.
-
-It does not invent hidden token counts or internal prompts when evidence is absent.
-
-### Export clean-room spec
-
-```bash
-node bin/harnesscope.mjs \
-  --db ./lab/workspace.sqlite \
-  export --session <SESSION> --out ./lab/export
-```
-
-Output:
-
-```text
-lab/export/
-├─ harness-spec.md
-├─ harness-spec.json
-└─ tool-schemas/
-```
-
-### Compare CLI and Desktop sessions
-
-```bash
-node bin/harnesscope.mjs \
-  --db ./lab/workspace.sqlite \
-  compare <CLI_SESSION> <DESKTOP_SESSION>
-```
-
-The diff reports shared and session-specific event kinds, observed tools and finding categories.
-
-## Desktop-style UI
-
-Start the local UI:
+## Browser UI
 
 ```bash
 node bin/harnesscope.mjs --db ./lab/workspace.sqlite ui --port 4173
 ```
 
-Open:
+Open `http://127.0.0.1:4173`. The browser UI keeps the read/infer workflow, while desktop-only actions are disabled when the Electron bridge is absent.
 
-```text
-http://127.0.0.1:4173
-```
+The UI provides session navigation, Trace/Spec tabs, grouped event traces, filtering, event/finding inspectors, confidence/provenance display, and inference for the selected session.
 
-The UI provides:
+## Inference boundary
 
-- session sidebar;
-- `Trace` and `Spec` tabs;
-- compact grouped trace cards;
-- event-kind filtering;
-- event detail inspector;
-- evidence-backed findings with confidence;
-- one-click inference for the selected session.
+HarnessScope can infer evidence-backed patterns such as progressive skill/instruction loading, permission gates, observed tool schemas, inspect/mutate/execute/verify loops, explicit context/compaction/resume markers, and session state persisted across restart.
 
-## Synthetic smoke demo
-
-```bash
-DB=./demo/workspace.sqlite
-SESSION=$(node bin/harnesscope.mjs --db "$DB" session new --name demo --mode desktop --json | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).id")
-node bin/harnesscope.mjs --db "$DB" launch --session "$SESSION" -- node fixtures/dummy-agent.mjs
-node bin/harnesscope.mjs --db "$DB" infer --session "$SESSION"
-node bin/harnesscope.mjs --db "$DB" export --session "$SESSION" --out ./demo/spec
-```
-
-On Windows PowerShell, run the commands separately and copy the returned session id.
+It does not invent hidden prompts, token counts or internal implementation details when evidence is absent.
 
 ## Tests
 
@@ -205,25 +145,22 @@ On Windows PowerShell, run the commands separately and copy the returned session
 npm test
 ```
 
-The test suite covers secret redaction, SQLite persistence, HAR/Procmon/JSONL imports, inference rules, session comparison, deterministic export, CLI end-to-end flow and UI APIs.
+CI runs the portable test suite on Ubuntu, Windows and macOS. Desktop build gates additionally install the pinned Electron toolchain, rerun tests, build Windows/macOS packages, validate non-empty expected outputs, and upload build artifacts.
 
 ## Repository layout
 
 ```text
-bin/                  CLI entrypoint
-src/core/             redaction, store, inference, compare, exporter
-src/importers/        HAR, Procmon CSV, JSONL
-src/observe/          owned process launch + metadata file watcher
-src/ui/               local HTTP/API server
-ui/                   desktop-style browser UI
-fixtures/             synthetic evidence and dummy agent
-test/                 Node test suite
-docs/                 design, plan and observation tutorial
+apps/desktop/          Electron main/preload/IPC/service layer
+bin/                   CLI entrypoint
+src/core/              redaction, store, inference, compare, exporter
+src/importers/         HAR, Procmon CSV, JSONL
+src/observe/           owned-process launch + metadata file watcher
+src/ui/                local HTTP/API server
+ui/                    shared browser/Electron renderer
+fixtures/              synthetic evidence and dummy agent
+test/                  Node test suite
+docs/                  design, plans and observation tutorial
 ```
-
-## Architecture note
-
-The approved product design describes a future Rust core + Tauri desktop build. The executable V1 in this repository uses Node.js 22 built-ins so the complete behavior can run without third-party package installation. The storage/event/CLI contracts are deliberately implementation-neutral so a later Rust/Tauri port can preserve the same workspace and clean-room semantics.
 
 ## License
 
