@@ -64,9 +64,53 @@ jobs:
         if: runner.os != 'Linux'
         run: cargo +1.98.1 check -p harnesscope-tauri
 
+  collector-linux:
+    name: collector-linux
+    needs: node-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal
+      - name: Collector SDK tests
+        run: cargo +1.98.1 test -p harnesscope-collector-sdk
+      - name: Native collector tests
+        run: cargo +1.98.1 test -p harnesscope-collectors
+      - name: Build native collector sidecar
+        run: cargo +1.98.1 build -p harnesscope-collectors --bin harnesscope-native-collector --release
+      - name: Native collector smoke
+        run: node scripts/run-native-collector-smoke.mjs
+        env:
+          NODE_NO_WARNINGS: "1"
+
+  collector-macos:
+    name: collector-macos
+    needs: node-test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal
+      - name: Collector SDK tests
+        run: cargo +1.98.1 test -p harnesscope-collector-sdk
+      - name: Native collector tests
+        run: cargo +1.98.1 test -p harnesscope-collectors
+      - name: Build native collector sidecar
+        run: cargo +1.98.1 build -p harnesscope-collectors --bin harnesscope-native-collector --release
+      - name: Native collector smoke
+        run: node scripts/run-native-collector-smoke.mjs
+        env:
+          NODE_NO_WARNINGS: "1"
+
   parity:
     name: parity
-    needs: [node-test, rust-core]
+    needs: [node-test, rust-core, collector-linux, collector-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
