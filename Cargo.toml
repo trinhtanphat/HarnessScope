@@ -4,6 +4,7 @@ members = [
   "crates/harnesscope-core",
   "crates/harnesscope-parity",
   "crates/harnesscope-collector-sdk",
+  "crates/harnesscope-collectors",
   "apps/tauri/src-tauri"
 ]
 
