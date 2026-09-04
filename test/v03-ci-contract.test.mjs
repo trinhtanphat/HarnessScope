@@ -12,7 +12,7 @@ const job = (name) => {
   return next >= 0 ? rest.slice(0, next) : rest;
 };
 
-test('v0.3 CI separates portable Node, cross-platform Rust, parity, and native Tauri gates', () => {
+test('v0.3 CI separates portable Node, cross-platform Rust core/parity, parity, and native Tauri gates', () => {
   for (const name of ['node-test', 'rust-core', 'parity', 'tauri-windows', 'tauri-macos']) job(name);
 
   const node = job('node-test');
@@ -23,9 +23,10 @@ test('v0.3 CI separates portable Node, cross-platform Rust, parity, and native T
   const rust = job('rust-core');
   assert.match(rust, /matrix:[\s\S]*os:\s*\[ubuntu-latest, windows-latest, macos-latest\]/);
   assert.match(rust, /cargo \+1\.98\.1 fmt --all -- --check/);
-  assert.match(rust, /cargo \+1\.98\.1 clippy --workspace --all-targets -- -D warnings/);
-  assert.match(rust, /cargo \+1\.98\.1 test --workspace/);
-  assert.match(rust, /cargo \+1\.98\.1 check -p harnesscope-tauri/);
+  assert.match(rust, /cargo \+1\.98\.1 clippy -p harnesscope-core -p harnesscope-parity --all-targets -- -D warnings/);
+  assert.match(rust, /cargo \+1\.98\.1 test -p harnesscope-core -p harnesscope-parity/);
+  assert.match(rust, /if:\s*runner\.os != 'Linux'[\s\S]*cargo \+1\.98\.1 clippy -p harnesscope-tauri --all-targets -- -D warnings/);
+  assert.match(rust, /if:\s*runner\.os != 'Linux'[\s\S]*cargo \+1\.98\.1 check -p harnesscope-tauri/);
 
   const parity = job('parity');
   assert.match(parity, /node scripts\/run-parity\.mjs/);
