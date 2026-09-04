@@ -130,7 +130,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         }
         "export" => {
-            println!("{}", serde_json::to_string(&export_parity(Path::new(&fixture))?)?);
+            println!(
+                "{}",
+                serde_json::to_string(&export_parity(Path::new(&fixture))?)?
+            );
             Ok(())
         }
         _ => Err(format!("unsupported parity case: {case}").into()),
