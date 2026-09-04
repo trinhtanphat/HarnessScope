@@ -18,7 +18,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev --config apps/tauri/src-tauri/tauri.conf.json",
     "tauri:win": "tauri build --config apps/tauri/src-tauri/tauri.conf.json --target x86_64-pc-windows-msvc --bundles nsis,msi",
-    "tauri:mac": "tauri build --config apps/tauri/src-tauri/tauri.conf.json --target universal-apple-darwin --bundles dmg,app"
+    "tauri:mac": "tauri build --config apps/tauri/src-tauri/tauri.conf.json --target universal-apple-darwin --bundles dmg,app",
+    "collector:build": "cargo build -p harnesscope-collectors --bin harnesscope-native-collector --release"
   },
   "engines": {
     "node": ">=22"

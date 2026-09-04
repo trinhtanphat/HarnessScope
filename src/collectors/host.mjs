@@ -22,7 +22,7 @@ function safeStatus(callback, value) {
   try { callback(value); } catch { /* status observers cannot break collection */ }
 }
 
-function validateStartInput({ command, args, request }) {
+function validateStartInput({ command, args, request, expectedCollectorId }) {
   if (typeof command !== 'string' || !command.trim()) {
     throw collectorError('COLLECTOR_INVALID_CONFIG');
   }
@@ -30,9 +30,21 @@ function validateStartInput({ command, args, request }) {
     throw collectorError('COLLECTOR_INVALID_CONFIG');
   }
   if (request.sdkVersion !== SDK_VERSION
-    || typeof request.collectorId !== 'string' || !request.collectorId.trim()
     || typeof request.instanceId !== 'string' || !request.instanceId.trim()
     || !Array.isArray(request.requestedCapabilities ?? [])) {
+    throw collectorError('COLLECTOR_INVALID_CONFIG');
+  }
+  if (request.collectorId !== undefined
+    && (typeof request.collectorId !== 'string' || !request.collectorId.trim())) {
+    throw collectorError('COLLECTOR_INVALID_CONFIG');
+  }
+  if (expectedCollectorId !== null
+    && (typeof expectedCollectorId !== 'string' || !expectedCollectorId.trim())) {
+    throw collectorError('COLLECTOR_INVALID_CONFIG');
+  }
+  if (expectedCollectorId !== null
+    && request.collectorId !== undefined
+    && request.collectorId !== expectedCollectorId) {
     throw collectorError('COLLECTOR_INVALID_CONFIG');
   }
 }
@@ -65,10 +77,14 @@ export function runExternalCollector({
   command,
   args = [],
   request,
+  expectedCollectorId,
   signal = null,
   onStatus = null,
 }) {
-  validateStartInput({ command, args, request });
+  const manifestCollectorId = expectedCollectorId === undefined
+    ? request?.collectorId ?? null
+    : expectedCollectorId;
+  validateStartInput({ command, args, request, expectedCollectorId: manifestCollectorId });
   if (!db || typeof sessionId !== 'string' || !sessionId.trim()) {
     return Promise.reject(collectorError('COLLECTOR_INVALID_CONFIG'));
   }
@@ -117,7 +133,7 @@ export function runExternalCollector({
         persistHostDiagnostic(
           db,
           sessionId,
-          manifest?.id ?? request.collectorId,
+          manifest?.id ?? manifestCollectorId ?? request.collectorId ?? 'external.collector',
           request.instanceId,
           error.code,
           'Collector queue capacity exceeded; evidence may be incomplete.',
@@ -197,6 +213,9 @@ export function runExternalCollector({
 
     const enqueueEnvelope = (envelope) => {
       validateEnvelope(envelope, lastSequence);
+      if (envelope.collectorId !== manifest.id || envelope.instanceId !== request.instanceId) {
+        throw collectorError('COLLECTOR_PROTOCOL_ERROR');
+      }
       lastSequence = envelope.sequence;
       if (pending.length >= MAX_PENDING_ENVELOPES) {
         throw collectorError('COLLECTOR_BACKPRESSURE');
@@ -222,7 +241,7 @@ export function runExternalCollector({
 
       if (!manifest) {
         validateManifest(value);
-        if (value.id !== request.collectorId) {
+        if (manifestCollectorId !== null && value.id !== manifestCollectorId) {
           throw collectorError('COLLECTOR_PROTOCOL_ERROR');
         }
         validateRequestedCapabilities(value, request);

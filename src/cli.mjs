@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { openWorkspace, createSession, getSession, listSessions, appendEvents, listEvents, replaceFindings, listFindings } from './core/store.mjs';
 import { acquireWorkspaceLock } from './core/workspace-lock.mjs';
@@ -9,17 +10,36 @@ import { compareSessions } from './core/compare.mjs';
 import { exportSession } from './core/exporter.mjs';
 import { launchTarget } from './observe/launch.mjs';
 import { watchFiles } from './observe/watch-files.mjs';
+import { describeCollector, listCollectorManifests } from './collectors/registry.mjs';
+import { runExternalCollector } from './collectors/host.mjs';
+import { resolveNativeCollectorBinary } from './collectors/native-sidecar.mjs';
+import { SDK_VERSION } from './collectors/protocol.mjs';
 
+function optionBoundary(args) {
+  const delim = args.indexOf('--');
+  return delim < 0 ? args.length : delim;
+}
 function pullFlag(args, name) {
   const i = args.indexOf(name);
-  if (i < 0) return false;
+  if (i < 0 || i >= optionBoundary(args)) return false;
   args.splice(i, 1); return true;
 }
 function pullOpt(args, name, fallback = null) {
   const i = args.indexOf(name);
-  if (i < 0) return fallback;
-  if (i === args.length - 1) throw new Error(`Missing value for ${name}`);
+  if (i < 0 || i >= optionBoundary(args)) return fallback;
+  if (i === optionBoundary(args) - 1) throw new Error(`Missing value for ${name}`);
   const value = args[i + 1]; args.splice(i, 2); return value;
+}
+function pullOpts(args, name) {
+  const values = [];
+  while (true) {
+    const i = args.indexOf(name);
+    if (i < 0 || i >= optionBoundary(args)) break;
+    if (i === optionBoundary(args) - 1) throw new Error(`Missing value for ${name}`);
+    values.push(args[i + 1]);
+    args.splice(i, 2);
+  }
+  return values;
 }
 function required(value, label) { if (!value) throw new Error(`Missing ${label}`); return value; }
 function emit(io, value, json) {
@@ -28,12 +48,23 @@ function emit(io, value, json) {
   else io.stdout.write(JSON.stringify(value, null, 2) + '\n');
 }
 function help() {
-  return `HarnessScope V1\n\nCommands:\n  session new --name <name> [--mode cli|desktop]\n  session list\n  launch --session <id> -- <target> [args...]\n  watch-files --session <id> --path <dir> [--seconds 10]\n  import har --session <id> <file.har>\n  import procmon --session <id> <file.csv> [--date YYYY-MM-DD]\n  import jsonl --session <id> <file.jsonl> --map <mapping.yaml>\n  timeline --session <id>\n  infer --session <id>\n  compare <session-a> <session-b>\n  export --session <id> --out <dir>\n  ui [--port 4173]\n\nGlobal: --db <workspace.sqlite> --json`;
+  return `HarnessScope V1\n\nCommands:\n  session new --name <name> [--mode cli|desktop]\n  session list\n  launch --session <id> -- <target> [args...]\n  watch-files --session <id> --path <dir> [--seconds 10]\n  collector list\n  collector describe <collector-id>\n  collector run <collector-id> --session <id> [--path <dir>...] [--hash-files] -- <target> [args...]\n  collector external --command <exe> --session <id> [--path <dir>...] -- <target> [args...]\n  import har --session <id> <file.har>\n  import procmon --session <id> <file.csv> [--date YYYY-MM-DD]\n  import jsonl --session <id> <file.jsonl> --map <mapping.yaml>\n  timeline --session <id>\n  infer --session <id>\n  compare <session-a> <session-b>\n  export --session <id> --out <dir>\n  ui [--port 4173]\n\nGlobal: --db <workspace.sqlite> --json`;
 }
 
 function commandWrites(command, args) {
   if (command === 'session') return args[0] === 'new';
+  if (command === 'collector') return args[0] === 'run' || args[0] === 'external';
   return new Set(['launch', 'watch-files', 'import', 'infer']).has(command);
+}
+
+function collectorTarget(args, label) {
+  const delim = args.indexOf('--');
+  if (delim < 0 || !args[delim + 1]) throw new Error(`${label} requires -- <target> [args...]`);
+  return { executable: args[delim + 1], args: args.slice(delim + 2) };
+}
+
+function requestedCapabilities(manifest, paths) {
+  return manifest.capabilities.filter((capability) => capability !== 'file.metadata' || paths.length > 0);
 }
 
 export async function runCli(argv = process.argv.slice(2), io = { stdout: process.stdout, stderr: process.stderr }) {
@@ -80,6 +111,74 @@ export async function runCli(argv = process.argv.slice(2), io = { stdout: proces
       const path = required(pullOpt(args, '--path'), '--path');
       const seconds = Number(pullOpt(args, '--seconds', '10'));
       emit(io, await watchFiles({ db, sessionId, path, seconds }), json); return 0;
+    }
+    if (command === 'collector') {
+      const action = args.shift();
+      if (action === 'list') {
+        emit(io, listCollectorManifests(), json); return 0;
+      }
+      if (action === 'describe') {
+        const id = required(args.shift(), 'collector-id');
+        emit(io, describeCollector(id), json); return 0;
+      }
+      if (action === 'run') {
+        const id = required(args.shift(), 'collector-id');
+        const sessionId = required(pullOpt(args, '--session'), '--session');
+        const paths = pullOpts(args, '--path');
+        const hashFiles = pullFlag(args, '--hash-files');
+        const target = collectorTarget(args, 'collector run');
+        if (!getSession(db, sessionId)) throw new Error(`Session not found: ${sessionId}`);
+        const manifest = describeCollector(id);
+        if (!manifest) throw new Error(`Collector not found: ${id}`);
+        const collectorBinary = resolveNativeCollectorBinary({
+          platform: process.platform,
+          arch: process.arch,
+          env: process.env,
+          cwd: process.cwd(),
+        });
+        const request = {
+          sdkVersion: manifest.sdkVersion,
+          collectorId: manifest.id,
+          instanceId: randomUUID(),
+          requestedCapabilities: requestedCapabilities(manifest, paths),
+          paths,
+          hashFiles,
+          target,
+        };
+        emit(io, await runExternalCollector({
+          db,
+          sessionId,
+          command: collectorBinary,
+          args: [],
+          request,
+        }), json);
+        return 0;
+      }
+      if (action === 'external') {
+        const externalCommand = required(pullOpt(args, '--command'), '--command');
+        const sessionId = required(pullOpt(args, '--session'), '--session');
+        const paths = pullOpts(args, '--path');
+        const target = collectorTarget(args, 'collector external');
+        if (!getSession(db, sessionId)) throw new Error(`Session not found: ${sessionId}`);
+        const request = {
+          sdkVersion: SDK_VERSION,
+          instanceId: randomUUID(),
+          requestedCapabilities: [],
+          paths,
+          hashFiles: false,
+          target,
+        };
+        emit(io, await runExternalCollector({
+          db,
+          sessionId,
+          command: externalCommand,
+          args: [],
+          request,
+          expectedCollectorId: null,
+        }), json);
+        return 0;
+      }
+      throw new Error(`Unknown collector action: ${action}`);
     }
     if (command === 'import') {
       const type = args.shift();
