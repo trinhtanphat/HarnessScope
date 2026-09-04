@@ -20,6 +20,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - name: Install locked Node dependencies
+        run: npm ci
       - name: Node tests
         run: npm test
         env:
@@ -58,6 +61,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - name: Install locked Node dependencies
+        run: npm ci
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.1 --profile minimal
       - name: Node/Rust semantic parity
@@ -75,10 +81,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install pinned Rust toolchain
-        run: rustup toolchain install 1.98.1 --profile minimal
-      - name: Install pinned desktop dependencies
-        run: npm install --no-audit --no-fund
+          cache: npm
+      - name: Install pinned Rust toolchain and Windows target
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup target add --toolchain 1.98.1 x86_64-pc-windows-msvc
+      - name: Install locked desktop dependencies
+        run: npm ci
       - name: Verify before native packaging
         run: |
           npm test
@@ -87,16 +97,16 @@ jobs:
           NODE_NO_WARNINGS: "1"
       - name: Build unsigned Windows Tauri bundles
         run: npm run tauri:win
-      - name: Normalize Windows artifacts
+      - name: Normalize Windows installer and portable package
         shell: pwsh
-        run: ./scripts/normalize-tauri-windows.ps1
+        run: ./scripts/package-windows-portable.ps1
       - name: Validate Windows artifacts
         shell: pwsh
         run: |
           $required = @(
-            'dist/tauri/windows/HarnessScope-0.3.0-windows-x64-Setup.exe',
-            'dist/tauri/windows/HarnessScope-0.3.0-windows-x64.msi',
-            'dist/tauri/windows/HarnessScope-0.3.0-windows-x64-portable.zip'
+            'dist/tauri/HarnessScope-0.3.0-windows-x64-Setup.exe',
+            'dist/tauri/HarnessScope-0.3.0-windows-x64.msi',
+            'dist/tauri/HarnessScope-0.3.0-windows-x64-portable.zip'
           )
           foreach ($path in $required) {
             if (-not (Test-Path -LiteralPath $path)) { throw "Missing required artifact: $path" }
@@ -105,24 +115,30 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: HarnessScope-0.3.0-windows-x64
-          path: dist/tauri/windows/*
+          path: |
+            dist/tauri/HarnessScope-0.3.0-windows-x64-Setup.exe
+            dist/tauri/HarnessScope-0.3.0-windows-x64.msi
+            dist/tauri/HarnessScope-0.3.0-windows-x64-portable.zip
           if-no-files-found: error
 
   tauri-macos:
     name: tauri-macos
     needs: [node-test, rust-core, parity]
     runs-on: macos-latest
+    env:
+      APPLE_SIGNING_IDENTITY: "-"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - name: Install pinned Rust toolchain and universal targets
         run: |
           rustup toolchain install 1.98.1 --profile minimal
           rustup target add --toolchain 1.98.1 aarch64-apple-darwin x86_64-apple-darwin
-      - name: Install pinned desktop dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install locked desktop dependencies
+        run: npm ci
       - name: Verify before native packaging
         run: |
           npm test
@@ -131,14 +147,16 @@ jobs:
           NODE_NO_WARNINGS: "1"
       - name: Build unsigned universal macOS Tauri bundles
         run: npm run tauri:mac
-      - name: Normalize macOS artifacts
-        run: bash scripts/normalize-tauri-macos.sh
+      - name: Normalize macOS DMG and app archive
+        run: bash scripts/package-macos-app.sh
       - name: Validate macOS artifacts
         run: |
-          test -s dist/tauri/macos/HarnessScope-0.3.0-macos-universal.dmg
-          test -s dist/tauri/macos/HarnessScope-0.3.0-macos-universal.app.zip
+          test -s dist/tauri/HarnessScope-0.3.0-macos-universal.dmg
+          test -s dist/tauri/HarnessScope-0.3.0-macos-universal.app.zip
       - uses: actions/upload-artifact@v4
         with:
           name: HarnessScope-0.3.0-macos-universal
-          path: dist/tauri/macos/*
+          path: |
+            dist/tauri/HarnessScope-0.3.0-macos-universal.dmg
+            dist/tauri/HarnessScope-0.3.0-macos-universal.app.zip
           if-no-files-found: error
