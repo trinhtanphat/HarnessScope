@@ -1,5 +1,4 @@
 use serde_json::{Value, json};
-use std::collections::HashSet;
 use sysinfo::{Pid, System};
 
 #[derive(Clone, Debug)]
@@ -39,13 +38,6 @@ pub(crate) fn attributable_descendants(root_pid: u32) -> Vec<ProcessSnapshot> {
                 name: process.name().to_string_lossy().into_owned(),
             })
         })
-        .collect()
-}
-
-pub(crate) fn descendant_pid_set(root_pid: u32) -> HashSet<u32> {
-    attributable_descendants(root_pid)
-        .into_iter()
-        .map(|snapshot| snapshot.pid)
         .collect()
 }
 
