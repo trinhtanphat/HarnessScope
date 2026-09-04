@@ -58,7 +58,7 @@ fn write_owner(lock_path: &Path, owner: &OwnerMetadata) -> Result<(), CoreError>
     fs::write(&temp_path, serde_json::to_vec(owner)?)?;
     match fs::rename(&temp_path, &owner_path) {
         Ok(()) => Ok(()),
-        Err(error) if owner_path.exists() => {
+        Err(_error) if owner_path.exists() => {
             fs::remove_file(&owner_path)?;
             fs::rename(&temp_path, &owner_path)?;
             Ok(())
