@@ -90,6 +90,10 @@ export function appendEvent(db, event) {
   return normalized;
 }
 
+export function appendCollectorEvent(db, sessionId, eventInput) {
+  return appendEvent(db, { ...eventInput, sessionId });
+}
+
 export function appendEvents(db, sessionId, events) {
   db.exec('BEGIN');
   try {
