@@ -1,0 +1,15 @@
+[package]
+name = "harnesscope-core"
+version = "0.3.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

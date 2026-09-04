@@ -20,6 +20,21 @@ jobs:
         env:
           NODE_NO_WARNINGS: "1"
 
+  rust-core:
+    name: rust-core
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Rust format
+        run: cargo +1.98.1 fmt --all -- --check
+      - name: Rust clippy
+        run: cargo +1.98.1 clippy --workspace --all-targets -- -D warnings
+      - name: Rust tests
+        run: cargo +1.98.1 test --workspace
+
   desktop-windows:
     name: desktop-windows
     needs: test
@@ -41,8 +56,8 @@ jobs:
         shell: pwsh
         run: |
           $required = @(
-            'dist/desktop/HarnessScope-0.2.0-Setup.exe',
-            'dist/desktop/HarnessScope-0.2.0-windows-portable.zip'
+            'dist/desktop/HarnessScope-0.3.0-Setup.exe',
+            'dist/desktop/HarnessScope-0.3.0-windows-portable.zip'
           )
           foreach ($path in $required) {
             if (-not (Test-Path -LiteralPath $path)) { throw "Missing required artifact: $path" }
@@ -50,10 +65,10 @@ jobs:
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: HarnessScope-0.2.0-windows
+          name: HarnessScope-0.3.0-electron-windows
           path: |
-            dist/desktop/HarnessScope-0.2.0-Setup.exe
-            dist/desktop/HarnessScope-0.2.0-windows-portable.zip
+            dist/desktop/HarnessScope-0.3.0-Setup.exe
+            dist/desktop/HarnessScope-0.3.0-windows-portable.zip
           if-no-files-found: error
 
   desktop-macos:
@@ -77,12 +92,12 @@ jobs:
         run: npm run desktop:mac
       - name: Validate macOS artifacts
         run: |
-          test -s dist/desktop/HarnessScope-0.2.0-macos-universal.dmg
-          test -s dist/desktop/HarnessScope-0.2.0-macos-universal.zip
+          test -s dist/desktop/HarnessScope-0.3.0-macos-universal.dmg
+          test -s dist/desktop/HarnessScope-0.3.0-macos-universal.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: HarnessScope-0.2.0-macos
+          name: HarnessScope-0.3.0-electron-macos
           path: |
-            dist/desktop/HarnessScope-0.2.0-macos-universal.dmg
-            dist/desktop/HarnessScope-0.2.0-macos-universal.zip
+            dist/desktop/HarnessScope-0.3.0-macos-universal.dmg
+            dist/desktop/HarnessScope-0.3.0-macos-universal.zip
           if-no-files-found: error

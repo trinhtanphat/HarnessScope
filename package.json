@@ -1,6 +1,6 @@
 {
   "name": "harnesscope",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Clean-room coding-agent harness inspector and behavioral spec exporter",
@@ -20,6 +20,7 @@
     "node": ">=22"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "2.11.4",
     "electron": "44.1.0",
     "electron-builder": "26.15.3"
   },
