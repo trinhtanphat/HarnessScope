@@ -18,7 +18,8 @@ fn finding(
         statement,
         evidence_event_ids: events
             .iter()
-            .filter_map(|event| (!event.id.is_empty()).then(|| event.id.clone()))
+            .filter(|event| !event.id.is_empty())
+            .map(|event| event.id.clone())
             .collect(),
     }
 }
