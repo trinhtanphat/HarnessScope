@@ -8,9 +8,7 @@ use std::{
     time::Duration,
 };
 
-fn write_json_line<T: serde::Serialize>(
-    value: &T,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn write_json_line<T: serde::Serialize>(value: &T) -> Result<(), Box<dyn std::error::Error>> {
     let stdout = io::stdout();
     let mut lock = stdout.lock();
     serde_json::to_writer(&mut lock, value)?;
